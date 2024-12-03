@@ -133,7 +133,7 @@ def pushover_notification(title, message):
             "status": response.status,
             "info": response.info,
             "response": response.read().decode("utf-8"),
-        }))
+        }, ensure_ascii=False))
 
     # Close the connection
     conn.close()
@@ -163,7 +163,7 @@ def process_news(description):
             "result": parsed["result"],
             "reason": parsed["reason"],
             "description": description
-        }))
+        }, ensure_ascii=False))
         return
 
     # Print the result
@@ -172,7 +172,7 @@ def process_news(description):
         "result": parsed["result"],
         "reason": parsed["reason"],
         "description": description
-    }))
+    }, ensure_ascii=False))
 
     # Send a Pushover notification
     pushover_notification("War alert", description + "\n\n" + parsed["reason"])
