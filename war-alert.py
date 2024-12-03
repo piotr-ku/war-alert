@@ -113,6 +113,7 @@ def pushover_notification(title, message):
         "user": os.environ.get("PUSHOVER_USER"),
         "title": title,
         "message": message,
+        "priority": 1,
     }), { "Content-type": "application/x-www-form-urlencoded" })
 
     # Check the response
