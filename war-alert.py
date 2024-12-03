@@ -4,9 +4,11 @@ import dotenv
 import hashlib
 import http.client
 import json
+import logging
 import openai
 import os
 import requests
+import sys
 import time
 import urllib
 import xml.etree
@@ -38,6 +40,12 @@ Pasuje do któregokolwiek z poniższych scenariuszy?
 
 Odpowiedz w formacie JSON: {"result": "<yes|no>", "reason": "<short reason in Polish>"}
 """
+
+# Create a logger and set stdout as a handler
+logger = logging.getLogger(__name__)
+logger.setLevel(logging.DEBUG)
+logger.addHandler(logging.StreamHandler(sys.stdout))
+
 
 def tmp_file_name():
     """
@@ -119,10 +127,11 @@ def pushover_notification(title, message):
     # Check the response
     response = conn.getresponse()
     if response.status != 200:
-        print("Error: " + response.reason)
-
-    # Print the response
-    print(response.read().decode("utf-8"))
+        logger.error(json.dumps({
+            "status": response.status,
+            "info": response.info,
+            "response": response.read().decode("utf-8"),
+        }))
 
     # Close the connection
     conn.close()
@@ -134,6 +143,9 @@ def calculate_md5_hash(text):
     return hashlib.md5(text.encode('utf-8')).hexdigest()
 
 def process_news(description):
+    """
+        Process a news.
+    """
     # Check if the description has already been processed
     hash = calculate_md5_hash(description)
     if search_hash_in_file(hash):
@@ -144,11 +156,19 @@ def process_news(description):
     # Parse the JSON response
     parsed = json.loads(answer)
     if parsed["result"] == "no":
-        print(description + "\n\n" + parsed["reason"])
+        logger.info(json.dumps({
+            "result": parsed["result"],
+            "reason": parsed["reason"],
+            "description": description
+        }))
         return
 
     # Print the result
-    print(description + "\n\n" + parsed["reason"])
+    logger.warning(json.dumps({
+        "result": parsed["result"],
+        "reason": parsed["reason"],
+        "description": description
+    }))
 
     # Send a Pushover notification
     pushover_notification("War alert", description + "\n\n" + parsed["reason"])
@@ -157,12 +177,16 @@ if __name__ == "__main__":
     # Load the .env file
     dotenv.load_dotenv()
 
-    # Get the RSS source
-    source = get_rss_source("https://defence24.pl/_RSS")
-    descriptions = get_rss_descriptions(source)
+    # Show the environment variables
+    for key, value in os.environ.items():
+        logger.info(f"{key}: {value}")
 
     # Process the RSS sources
     for url in os.environ.get("RSS_URLS", "").split(","):
+        # Get the RSS source and extract the descriptions
+        source = get_rss_source(url)
+        descriptions = get_rss_descriptions(source)
+
         # Process the descriptions
         for description in descriptions:
             process_news(description)
