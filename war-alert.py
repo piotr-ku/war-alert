@@ -128,6 +128,7 @@ def pushover_notification(title, message):
     response = conn.getresponse()
     if response.status != 200:
         logger.error(json.dumps({
+            "time": time.strftime("%Y-%m-%dT%H:%M:%S", time.localtime()),
             "status": response.status,
             "info": response.info,
             "response": response.read().decode("utf-8"),
@@ -157,6 +158,7 @@ def process_news(description):
     parsed = json.loads(answer)
     if parsed["result"] == "no":
         logger.info(json.dumps({
+            "time": time.strftime("%Y-%m-%dT%H:%M:%S", time.localtime()),
             "result": parsed["result"],
             "reason": parsed["reason"],
             "description": description
@@ -165,6 +167,7 @@ def process_news(description):
 
     # Print the result
     logger.warning(json.dumps({
+        "time": time.strftime("%Y-%m-%dT%H:%M:%S", time.localtime()),
         "result": parsed["result"],
         "reason": parsed["reason"],
         "description": description
