@@ -20,7 +20,7 @@ Czy poniższy news:
 """
 
 prompt2 = """
-Pasuje do któregokolwiek z poniższych scenariuszy?
+Opisuje którykolwiek z poniższych scenariuszy?
 
 - ewakuacja dowolnego konsulatu lub ambasady w krajach NATO zagrożonych konfliktem
 - zalecenie konsulatu lub ambasady dowolnego kraju, aby jego obywatele opuścili dowolny kraj NATO zagrożony konfliktem
@@ -38,6 +38,8 @@ Pasuje do któregokolwiek z poniższych scenariuszy?
 - zamknięcie granicy przez którekolwiek z państw sąsiednich
 - wprowadzenie kontroli na granicach przez conajmniej jeszcze jedno państwo sąsiednie
 - orędzie Putina, które może być intepretowane jako uzasadnienie przed narodem rosyjskim agresji wobec państw NATO
+
+Przyjmij, że kraje NATO zagrożone konfliktem to: Polska, Szwecja, Finlandia, Litwa, Łotwa, Estonia.
 
 Odpowiedz w formacie JSON: {"result": "<yes|no>", "reason": "<short reason in Polish>"}
 """
