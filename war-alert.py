@@ -192,4 +192,4 @@ if __name__ == "__main__":
             process_news(description)
 
         # Sleep for 10 minutes
-        time.sleep(600)
+        time.sleep(os.environ.get("SLEEP_DELAY", 600))
