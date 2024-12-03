@@ -180,21 +180,23 @@ if __name__ == "__main__":
     # Load the .env file
     dotenv.load_dotenv()
 
-    # Process the RSS sources
-    for url in os.environ.get("RSS_URLS", "").split(","):
-        # Log the RSS source
-        logger.info(json.dumps({
-            "time": time.strftime("%Y-%m-%dT%H:%M:%S", time.localtime()),
-            "url": url
-        }))
+    # Infinite loop
+    while True:
+        # Process the RSS sources
+        for url in os.environ.get("RSS_URLS", "").split(","):
+            # Log the RSS source
+            logger.info(json.dumps({
+                "time": time.strftime("%Y-%m-%dT%H:%M:%S", time.localtime()),
+                "url": url
+            }))
 
-        # Get the RSS source and extract the descriptions
-        source = get_rss_source(url)
-        descriptions = get_rss_descriptions(source)
+            # Get the RSS source and extract the descriptions
+            source = get_rss_source(url)
+            descriptions = get_rss_descriptions(source)
 
-        # Process the descriptions
-        for description in descriptions:
-            process_news(description)
+            # Process the descriptions
+            for description in descriptions:
+                process_news(description)
 
         # Sleep for 10 minutes
         time.sleep(os.environ.get("SLEEP_DELAY", 600))
