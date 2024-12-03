@@ -177,10 +177,6 @@ if __name__ == "__main__":
     # Load the .env file
     dotenv.load_dotenv()
 
-    # Show the environment variables
-    for key, value in os.environ.items():
-        logger.info(f"{key}: {value}")
-
     # Process the RSS sources
     for url in os.environ.get("RSS_URLS", "").split(","):
         # Get the RSS source and extract the descriptions
