@@ -7,6 +7,7 @@ import json
 import openai
 import os
 import requests
+import time
 import urllib
 import xml.etree
 import xml.etree.ElementTree
@@ -159,3 +160,6 @@ if __name__ == "__main__":
 
         # Send a Pushover notification
         pushover_notification("War alert", description + "\n\n" + parsed["reason"])
+
+        # Sleep for 10 minutes
+        time.sleep(600)
