@@ -26,7 +26,7 @@ Pasuje do któregokolwiek z poniższych scenariuszy?
 - debata na temat ogłoszenia mobilizacji w Polsce
 - debata na temat wprowadzenia w Polsce stanu wojennego lub jakiegokolwiek innego kraju azjatyckiego
 - ogłoszenie mobilizacji w Polsce
-- ogłoszenie stanu wojennego w Polsce lub dowolnym kraju azjatyckim
+- ogłoszenie stanu wojennego w Polsce lub dowolnym kraju NATO
 - atak rakietowy na dowolny kraj NATO
 - użycie broni nuklearnej gdziekolwiek
 - informacje o koncentracji wojsk w pobliżu granicy dowolnego kraju NATO zagrożonego konfliktem
