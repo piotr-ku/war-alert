@@ -132,6 +132,26 @@ def calculate_md5_hash(text):
     """
     return hashlib.md5(text.encode('utf-8')).hexdigest()
 
+def process_news(description):
+    # Check if the description has already been processed
+    hash = calculate_md5_hash(description)
+    if search_hash_in_file(hash):
+        return
+    write_hash_to_file(hash)
+    answer = openai_request(prompt1 + "\n\n" + description + "\n\n" + prompt2)
+
+    # Parse the JSON response
+    parsed = json.loads(answer)
+    if parsed["result"] == "no":
+        print(description + "\n\n" + parsed["reason"])
+        return
+
+    # Print the result
+    print(description + "\n\n" + parsed["reason"])
+
+    # Send a Pushover notification
+    pushover_notification("War alert", description + "\n\n" + parsed["reason"])
+
 if __name__ == "__main__":
     # Load the .env file
     dotenv.load_dotenv()
@@ -140,26 +160,11 @@ if __name__ == "__main__":
     source = get_rss_source("https://defence24.pl/_RSS")
     descriptions = get_rss_descriptions(source)
 
-    # Process the descriptions
-    for description in descriptions:
-        # Check if the description has already been processed
-        hash = calculate_md5_hash(description)
-        if search_hash_in_file(hash):
-            continue
-        write_hash_to_file(hash)
-        answer = openai_request(prompt1 + "\n\n" + description + "\n\n" + prompt2)
-
-        # Parse the JSON response
-        parsed = json.loads(answer)
-        if parsed["result"] == "no":
-            print(description + "\n\n" + parsed["reason"])
-            continue
-
-        # Print the result
-        print(description + "\n\n" + parsed["reason"])
-
-        # Send a Pushover notification
-        pushover_notification("War alert", description + "\n\n" + parsed["reason"])
+    # Process the RSS sources
+    for url in os.environ.get("RSS_URLS", "").split(","):
+        # Process the descriptions
+        for description in descriptions:
+            process_news(description)
 
         # Sleep for 10 minutes
         time.sleep(600)
