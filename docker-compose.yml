@@ -1,0 +1,11 @@
+---
+
+services:
+  python:
+    image: python:3.13-alpine
+    container_name: war-alert
+    volumes:
+      - .:/app
+    working_dir: /app
+    restart: always
+    command: "/app/war-alert.sh"
