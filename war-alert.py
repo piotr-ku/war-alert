@@ -107,7 +107,7 @@ def pushover_notification(title, message):
     conn = http.client.HTTPSConnection("api.pushover.net:443")
 
     # Send a POST request
-    request = conn.request("POST", "/1/messages.json",
+    conn.request("POST", "/1/messages.json",
     urllib.parse.urlencode({
         "token": os.environ.get("PUSHOVER_TOKEN"),
         "user": os.environ.get("PUSHOVER_USER"),
