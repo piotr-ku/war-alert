@@ -8,6 +8,7 @@ import logging
 import openai
 import os
 import requests
+import signal
 import sys
 import time
 import urllib
@@ -176,6 +177,20 @@ def process_news(description):
     # Send a Pushover notification
     pushover_notification("War alert", description + "\n\n" + parsed["reason"])
 
+def signal_handler(sig, frame):
+    """
+        Handle the SIGKILL, SIGTERM and KeyboardInterrupt signals.
+    """
+    logger.warning(json.dumps({
+        "time": time.strftime("%Y-%m-%dT%H:%M:%S", time.localtime()),
+        "signal": signal.Signals(sig).name,
+    }))
+    sys.exit(0)
+
+# Handle the SIGTERM and SIGINT signals
+signal.signal(signal.SIGTERM, signal_handler)
+signal.signal(signal.SIGINT, signal_handler)
+
 if __name__ == "__main__":
     # Load the .env file
     dotenv.load_dotenv()
@@ -200,3 +215,4 @@ if __name__ == "__main__":
 
         # Sleep for 10 minutes
         time.sleep(os.environ.get("SLEEP_DELAY", 600))
+
