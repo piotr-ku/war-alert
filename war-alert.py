@@ -96,7 +96,7 @@ def openai_request(query):
     """
     client = openai.OpenAI()
     completion = client.chat.completions.create(
-        model="gpt-4o",
+        model=os.environ.get("OPENAI_MODEL", "gpt-4o-mini"),
         messages=[
             {
                 "role": "user",
