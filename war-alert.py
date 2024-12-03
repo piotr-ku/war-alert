@@ -82,14 +82,14 @@ def get_rss_source(url):
     """
     return requests.get(url).text
 
-def get_rss_descriptions(rss_source):
+def get_rss_items(rss_source):
     """
-        Return a list of descriptions from an RSS source.
-        It parses the RSS source in XML format and returns a list of descriptions.
+        Return a list of items containing titles and descriptions from an RSS source.
+        It parses the RSS source in XML format and returns a list of items.
     """
     # Get the root element of the RSS source
     root = xml.etree.ElementTree.fromstring(rss_source)
-    return [description.text for description in root.findall("./channel/item/description")]
+    return [f"{item.find("title").text}: {item.find("description").text}" for item in root.findall("./channel/item")]
 
 def openai_request(query):
     """
@@ -205,12 +205,12 @@ if __name__ == "__main__":
                 "url": url
             }))
 
-            # Get the RSS source and extract the descriptions
+            # Get the RSS source and extract the titles and descriptions
             source = get_rss_source(url)
-            descriptions = get_rss_descriptions(source)
+            items = get_rss_items(source)
 
             # Process the descriptions
-            for description in descriptions:
+            for description in items:
                 process_news(description)
 
         # Sleep for 10 minutes
