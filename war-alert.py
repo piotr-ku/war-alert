@@ -27,16 +27,16 @@ Opisuje którykolwiek z poniższych scenariuszy?
 - opuszczenie przez rosyjskich dyplomatów dowolnego kraju NATO zagrożonego konfliktem
 - podejrzenie niszczenia dokumentów w rosyjskiej ambasadzie lub konsulacie w dowolnym kraju NATO zagrożonym konfliktem
 - debata na temat ogłoszenia mobilizacji w Polsce
-- debata na temat wprowadzenia w Polsce stanu wojennego lub jakiegokolwiek innego kraju azjatyckiego
+- debata na temat wprowadzenia w Polsce stanu wojennego lub jakiegokolwiek innego kraju NATO
 - ogłoszenie mobilizacji w Polsce
 - ogłoszenie stanu wojennego w Polsce lub dowolnym kraju NATO
 - atak rakietowy na dowolny kraj NATO
-- użycie broni nuklearnej gdziekolwiek
-- informacje o koncentracji wojsk w pobliżu granicy dowolnego kraju NATO zagrożonego konfliktem
+- użycie broni nuklearnej gdziekolwiek na świecie
+- informacje o koncentracji wojsk w pobliżu granicy dowolnego kraju NATO
 - informacje od służb jakiegokolwiek kraju NATO o planowanej poważnej prowokacji ze strony Rosji
 - informacje o poważnej prowokacji ze strony Rosji lub NATO
-- zamknięcie granicy przez którekolwiek z państw sąsiednich
-- wprowadzenie kontroli na granicach przez conajmniej jeszcze jedno państwo sąsiednie
+- zamknięcie granicy z Polską przez którekolwiek z państw NATO
+- wprowadzenie kontroli na granicach z Polską przez co najmniej jeszcze jedno państwo NATO
 - orędzie Putina, które może być intepretowane jako uzasadnienie przed narodem rosyjskim agresji wobec państw NATO
 
 Przyjmij, że kraje NATO zagrożone konfliktem to: Polska, Szwecja, Finlandia, Litwa, Łotwa, Estonia.
