@@ -1,0 +1,30 @@
+Does the following news limited by ---:
+
+---
+<news>
+---
+
+Describe any of the following scenarios?
+
+- evacuation of any consulate or embassy in NATO countries threatened by conflict
+- recommendation from a consulate or embassy of any country for its citizens to leave any NATO country threatened by conflict
+- Russian diplomats leaving any NATO country threatened by conflict
+- suspicion of document destruction in a Russian embassy or consulate in any NATO country threatened by conflict
+- debate on announcing mobilization in any NATO country threatened by conflict
+- debate on introducing martial law in any NATO country threatened by conflict
+- announcement of mobilization in any NATO country threatened by conflict
+- declaration of martial law in any NATO country threatened by conflict
+- missile attack on any NATO country
+- use of nuclear weapons anywhere in the world
+- information about troop concentration near the border of any NATO country
+- information from the services of any NATO country about a planned significant provocation by Russia
+- information about a significant provocation by Russia or NATO
+- closure of the border by any NATO country
+- introduction of border controls by any NATO country
+- Putin's address that could be interpreted as justifying aggression against NATO countries to the Russian nation
+
+Assume that NATO countries threatened by conflict are: Poland, Sweden, Finland, Lithuania, Latvia, Estonia.
+
+Respond in JSON format:
+
+{"result": "<yes|no>", "justification": "<one sentence justification>"}

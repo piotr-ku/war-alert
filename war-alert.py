@@ -15,35 +15,6 @@ import urllib
 import xml.etree
 import xml.etree.ElementTree
 
-prompt1 = """
-Czy poniższy news:
-"""
-
-prompt2 = """
-Opisuje którykolwiek z poniższych scenariuszy?
-
-- ewakuacja dowolnego konsulatu lub ambasady w krajach NATO zagrożonych konfliktem
-- zalecenie konsulatu lub ambasady dowolnego kraju, aby jego obywatele opuścili dowolny kraj NATO zagrożony konfliktem
-- opuszczenie przez rosyjskich dyplomatów dowolnego kraju NATO zagrożonego konfliktem
-- podejrzenie niszczenia dokumentów w rosyjskiej ambasadzie lub konsulacie w dowolnym kraju NATO zagrożonym konfliktem
-- debata na temat ogłoszenia mobilizacji w Polsce
-- debata na temat wprowadzenia w Polsce stanu wojennego lub jakiegokolwiek innego kraju NATO
-- ogłoszenie mobilizacji w Polsce
-- ogłoszenie stanu wojennego w Polsce lub dowolnym kraju NATO
-- atak rakietowy na dowolny kraj NATO
-- użycie broni nuklearnej gdziekolwiek na świecie
-- informacje o koncentracji wojsk w pobliżu granicy dowolnego kraju NATO
-- informacje od służb jakiegokolwiek kraju NATO o planowanej poważnej prowokacji ze strony Rosji
-- informacje o poważnej prowokacji ze strony Rosji lub NATO
-- zamknięcie granicy z Polską przez którekolwiek z państw NATO
-- wprowadzenie kontroli na granicach z Polską przez co najmniej jeszcze jedno państwo NATO
-- orędzie Putina, które może być intepretowane jako uzasadnienie przed narodem rosyjskim agresji wobec państw NATO
-
-Przyjmij, że kraje NATO zagrożone konfliktem to: Polska, Szwecja, Finlandia, Litwa, Łotwa, Estonia.
-
-Odpowiedz w formacie JSON: {"result": "<yes|no>", "reason": "<short reason in Polish>"}
-"""
-
 # Create a logger and set stdout as a handler
 logger = logging.getLogger(__name__)
 logger.setLevel(logging.DEBUG)
@@ -146,25 +117,43 @@ def calculate_md5_hash(text):
     """
     return hashlib.md5(text.encode('utf-8')).hexdigest()
 
-def process_news(description):
+def get_prompt(news):
+    """
+        Return the prompt.
+    """
+    with open(os.environ.get("PROMPT_FILE", "./prompt.txt"), "r") as file:
+        return file.read().replace("<news>", news)
+
+def process_news(news):
     """
         Process a news.
     """
-    # Check if the description has already been processed
-    hash = calculate_md5_hash(description)
+    # Check if the news has already been processed
+    hash = calculate_md5_hash(news)
     if search_hash_in_file(hash):
         return
     write_hash_to_file(hash)
-    answer = openai_request(prompt1 + "\n\n" + description + "\n\n" + prompt2)
+    prompt = get_prompt(news)
+    answer = openai_request(prompt)
 
     # Parse the JSON response
     parsed = json.loads(answer)
+
+    # Validate the JSON response, result and justification must be present
+    if "result" not in parsed or "justification" not in parsed:
+        logger.error(json.dumps({
+            "time": time.strftime("%Y-%m-%dT%H:%M:%S", time.localtime()),
+            "error": "result or justification not found",
+            "news": news,
+        }, ensure_ascii=False))
+        return
+
     if parsed["result"] == "no":
         logger.info(json.dumps({
             "time": time.strftime("%Y-%m-%dT%H:%M:%S", time.localtime()),
             "result": parsed["result"],
-            "reason": parsed["reason"],
-            "description": description
+            "justification": parsed["justification"],
+            "news": news,
         }, ensure_ascii=False))
         return
 
@@ -172,12 +161,12 @@ def process_news(description):
     logger.warning(json.dumps({
         "time": time.strftime("%Y-%m-%dT%H:%M:%S", time.localtime()),
         "result": parsed["result"],
-        "reason": parsed["reason"],
-        "description": description
+        "justification": parsed["justification"],
+        "news": news
     }, ensure_ascii=False))
 
     # Send a Pushover notification
-    pushover_notification("War alert", description + "\n\n" + parsed["reason"])
+    pushover_notification("War alert", news + "\n\n" + parsed["justification"])
 
 def signal_handler(sig, frame):
     """
@@ -211,9 +200,9 @@ if __name__ == "__main__":
             source = get_rss_source(url)
             items = get_rss_items(source)
 
-            # Process the descriptions
-            for description in items:
-                process_news(description)
+            # Process the news
+            for news in items:
+                process_news(news)
 
         # Sleep for 10 minutes
         time.sleep(os.environ.get("SLEEP_DELAY", 600))
