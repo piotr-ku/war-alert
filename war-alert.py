@@ -1,5 +1,6 @@
 #!/usr/bin/env python3
 
+import datetime
 import dotenv
 import hashlib
 import http.client
@@ -20,6 +21,24 @@ logger = logging.getLogger(__name__)
 logger.setLevel(logging.DEBUG)
 logger.addHandler(logging.StreamHandler(sys.stdout))
 
+class News:
+    """
+        A class to represent a news.
+    """
+    def __init__(self, title, description, pubDate, link):
+        """
+            Initialize a news.
+        """
+        self.title = title
+        self.description = description
+        self.pubDate = pubDate
+        self.link = link
+
+    def __str__(self):
+        """
+            Return a string representation of a news.
+        """
+        return f"{self.title}: {self.description}"
 
 def tmp_file_name():
     """
@@ -49,20 +68,23 @@ def write_hash_to_file(hash):
     with open(tmp_file_name(), "a") as file:
         file.write(hash + "\n")
 
-def get_rss_source(url):
+def get_rss_items(url):
     """
-        Return an RSS source in XML format.
+        Return a list of RSS items from a URL.
     """
-    return requests.get(url).text
+    # Get the source of the RSS feed
+    source = requests.get(url).text
 
-def get_rss_items(rss_source):
-    """
-        Return a list of items containing titles and descriptions from an RSS source.
-        It parses the RSS source in XML format and returns a list of items.
-    """
-    # Get the root element of the RSS source
-    root = xml.etree.ElementTree.fromstring(rss_source)
-    return [f"{item.find("title").text}: {item.find("description").text}" for item in root.findall("./channel/item")]
+    # Parse the RSS source in XML format
+    root = xml.etree.ElementTree.fromstring(source)
+
+    # Return a list of items
+    return [News(
+        item.find("title").text,
+        item.find("description").text,
+        item.find("pubDate").text,
+        item.find("link").text,
+    ) for item in root.findall("./channel/item")]
 
 def openai_request(query):
     """
@@ -129,11 +151,11 @@ def process_news(news):
         Process a news.
     """
     # Check if the news has already been processed
-    hash = calculate_md5_hash(news)
+    hash = calculate_md5_hash(str(news))
     if search_hash_in_file(hash):
         return
     write_hash_to_file(hash)
-    prompt = get_prompt(news)
+    prompt = get_prompt(str(news))
     answer = openai_request(prompt)
 
     # Parse the JSON response
@@ -144,7 +166,10 @@ def process_news(news):
         logger.error(json.dumps({
             "time": time.strftime("%Y-%m-%dT%H:%M:%S", time.localtime()),
             "error": "result or justification not found",
-            "news": news,
+            "title": news.title,
+            "description": news.description,
+            "pubDate": news.pubDate,
+            "link": news.link,
         }, ensure_ascii=False))
         return
 
@@ -153,7 +178,10 @@ def process_news(news):
             "time": time.strftime("%Y-%m-%dT%H:%M:%S", time.localtime()),
             "result": parsed["result"],
             "justification": parsed["justification"],
-            "news": news,
+            "title": news.title,
+            "description": news.description,
+            "pubDate": news.pubDate,
+            "link": news.link,
         }, ensure_ascii=False))
         return
 
@@ -162,11 +190,17 @@ def process_news(news):
         "time": time.strftime("%Y-%m-%dT%H:%M:%S", time.localtime()),
         "result": parsed["result"],
         "justification": parsed["justification"],
-        "news": news
+        "title": news.title,
+        "description": news.description,
+        "pubDate": news.pubDate,
+        "link": news.link,
     }, ensure_ascii=False))
 
     # Send a Pushover notification
-    pushover_notification("War alert", news + "\n\n" + parsed["justification"])
+    pushover_notification(
+        f"War alert: {news.title}",
+        f"{news.description}\n\n{parsed['justification']}\n\n{news.link}",
+    )
 
 def signal_handler(sig, frame):
     """
@@ -196,9 +230,8 @@ if __name__ == "__main__":
                 "url": url
             }))
 
-            # Get the RSS source and extract the titles and descriptions
-            source = get_rss_source(url)
-            items = get_rss_items(source)
+            # Get the RSS items
+            items = get_rss_items(url)
 
             # Process the news
             for news in items:
