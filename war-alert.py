@@ -2,6 +2,7 @@
 
 import dotenv
 import hashlib
+import html.parser
 import http.client
 import json
 import logging
@@ -39,6 +40,23 @@ class News:
         """
         return f"{self.title}: {self.description}"
 
+class TagRemover(html.parser.HTMLParser):
+    """
+        A class to remove HTML tags from a string.
+    """
+    def __init__(self):
+        """
+            Initialize a tag remover.
+        """
+        super().__init__()
+        self.text = ""
+
+    def handle_data(self, data):
+        """
+            Handle data.
+        """
+        self.text += data
+
 def tmp_file_name():
     """
         Return a temporary file name using $TMPDIR environment variable.
@@ -67,6 +85,14 @@ def write_hash_to_file(hash):
     with open(tmp_file_name(), "a") as file:
         file.write(hash + "\n")
 
+def remove_tags(text):
+    """
+        Remove HTML tags from a string.
+    """
+    parser = TagRemover()
+    parser.feed(text)
+    return parser.text
+
 def get_rss_items(url):
     """
         Return a list of RSS items from a URL.
@@ -80,7 +106,7 @@ def get_rss_items(url):
     # Return a list of items
     return [News(
         item.find("title").text,
-        item.find("description").text,
+        remove_tags(item.find("description").text),
         item.find("pubDate").text,
         item.find("link").text,
     ) for item in root.findall("./channel/item")]
