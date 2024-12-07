@@ -32,7 +32,7 @@ This script monitors RSS feeds for specific news alerts, processes them with Ope
 
 2. Create a `.env` file in the project root with the following variables:
    ```env
-   RSS_URLS=<comma-separated-list-of-rss-urls>
+   RSS_URLS=<space-separated-list-of-rss-urls>
    PUSHOVER_TOKEN=<your-pushover-api-token>
    PUSHOVER_USER=<your-pushover-user-key>
    OPENAI_API_KEY=<your-openai-api-key>
