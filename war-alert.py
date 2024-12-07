@@ -204,6 +204,6 @@ if __name__ == "__main__":
             for news in items:
                 process_news(news)
 
-        # Sleep for 10 minutes
-        time.sleep(os.environ.get("SLEEP_DELAY", 600))
+        # Sleep for the specified delay
+        time.sleep(int(os.environ.get("SLEEP_DELAY", 600)))
 
