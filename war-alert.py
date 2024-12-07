@@ -158,6 +158,25 @@ def pushover_notification(title, message):
     # Close the connection
     conn.close()
 
+def telegram_notification(title, message):
+    """
+    Send a message to a Telegram channel using the Telegram Bot API.
+    """
+    url = f"https://api.telegram.org/bot{os.environ.get('TELEGRAM_BOT_TOKEN')}/sendMessage"
+    payload = {
+        "chat_id": os.environ.get("TELEGRAM_CHANNEL_ID"),
+        "text": f"{title}\n\n{message}",
+    }
+    response = requests.post(url, json=payload)
+
+    # Check the response
+    if response.status_code != 200:
+        logger.error(json.dumps({
+            "time": time.strftime("%Y-%m-%dT%H:%M:%S", time.localtime()),
+            "status": response.status_code,
+            "response": response.text,
+        }, ensure_ascii=False))
+
 def calculate_md5_hash(text):
     """
         Calculate the MD5 hash of a text.
@@ -221,11 +240,19 @@ def process_news(news):
         "link": news.link,
     }, ensure_ascii=False))
 
-    # Send a Pushover notification
-    pushover_notification(
-        f"War alert: {news.title}",
-        f"{news.description}\n\n{parsed['justification']}\n\n{news.link}",
-    )
+    if os.getenv("PUSHOVER_TOKEN") is not None:
+        # Send a Pushover notification
+        pushover_notification(
+            f"War alert: {news.title}",
+            f"{news.description}\n\n{parsed['justification']}\n\n{news.link}",
+        )
+
+    # Send a Telegram notification
+    if os.getenv("TELEGRAM_BOT_TOKEN") is not None:
+        telegram_notification(
+            f"War alert: {news.title}",
+            f"{news.description}\n\n{parsed['justification']}\n\n{news.link}",
+        )
 
 def signal_handler(sig, frame):
     """

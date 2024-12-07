@@ -1,6 +1,6 @@
 # War Alert Script
 
-This script monitors RSS feeds for specific news alerts, processes them with OpenAI's API, and sends notifications via Pushover. It ensures that duplicate news items are ignored and provides detailed logging for each step of the process.
+This script monitors RSS feeds for specific news alerts, processes them with OpenAI's API, and sends notifications via Pushover or Telegram. It ensures that duplicate news items are ignored and provides detailed logging for each step of the process.
 
 ## Features
 
@@ -38,6 +38,8 @@ This script monitors RSS feeds for specific news alerts, processes them with Ope
    OPENAI_API_KEY=<your-openai-api-key>
    PROMPT_FILE=<path-to-prompt-file>
    SLEEP_DELAY=600
+   TELEGRAM_BOT_TOKEN=<your-telegram-bot-token>
+   TELEGRAM_CHANNEL_ID=<your-telegram-channel-id>
    TMPDIR=/tmp
    ```
    Adjust `SLEEP_DELAY` (in seconds) and `TMPDIR` as needed.
