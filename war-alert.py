@@ -1,6 +1,5 @@
 #!/usr/bin/env python3
 
-import datetime
 import dotenv
 import hashlib
 import http.client
@@ -239,4 +238,3 @@ if __name__ == "__main__":
 
         # Sleep for the specified delay
         time.sleep(int(os.environ.get("SLEEP_DELAY", 600)))
-
