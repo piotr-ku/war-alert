@@ -3,7 +3,6 @@
 import dotenv
 import hashlib
 import html.parser
-import http.client
 import json
 import logging
 import openai
@@ -132,31 +131,23 @@ def pushover_notification(title, message):
     """
         Send a Pushover notification.
     """
-    # Create a connection
-    conn = http.client.HTTPSConnection("api.pushover.net:443")
-
     # Send a POST request
-    conn.request("POST", "/1/messages.json",
-    urllib.parse.urlencode({
+    response = requests.post("https://api.pushover.net:443/1/messages.json", data={
         "token": os.environ.get("PUSHOVER_TOKEN"),
         "user": os.environ.get("PUSHOVER_USER"),
         "title": title,
         "message": message,
         "priority": 1,
-    }), { "Content-type": "application/x-www-form-urlencoded" })
+    })
 
     # Check the response
-    response = conn.getresponse()
-    if response.status != 200:
+    if response.status_code != 200:
         logger.error(json.dumps({
             "time": time.strftime("%Y-%m-%dT%H:%M:%S", time.localtime()),
-            "status": response.status,
-            "info": response.info,
-            "response": response.read().decode("utf-8"),
+            "status": response.status_code,
+            "info": response.headers,
+            "response": response.text,
         }, ensure_ascii=False))
-
-    # Close the connection
-    conn.close()
 
 def telegram_notification(title, message):
     """
