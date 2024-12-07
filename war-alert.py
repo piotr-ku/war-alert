@@ -248,7 +248,7 @@ if __name__ == "__main__":
     # Infinite loop
     while True:
         # Process the RSS sources
-        for url in os.environ.get("RSS_URLS", "").split(","):
+        for url in os.environ.get("RSS_URLS", "").split(" "):
             # Log the RSS source
             logger.info(json.dumps({
                 "time": time.strftime("%Y-%m-%dT%H:%M:%S", time.localtime()),
