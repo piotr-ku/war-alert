@@ -21,6 +21,10 @@ class News:
         """
             Return a string representation of a news.
         """
+        if self.description is None:
+            return self.title
+        if self.title is None:
+            return self.description
         return f"{self.title}: {self.description}"
 
 class TagRemover(html.parser.HTMLParser):
@@ -44,6 +48,8 @@ def remove_tags(text):
     """
         Remove HTML tags from a string.
     """
+    if text is None:
+        return ""
     parser = TagRemover()
     parser.feed(text)
     return parser.text
