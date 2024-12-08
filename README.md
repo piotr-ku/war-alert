@@ -32,12 +32,18 @@ This script monitors RSS feeds for specific news alerts, processes them with Ope
 
 2. Create a `.env` file in the project root with the following variables:
    ```env
+   EMAIL_FROM=<your-email-address>
+   EMAIL_TO=<space-separated-list-of-email-addresses>
    RSS_URLS=<space-separated-list-of-rss-urls>
    PUSHOVER_TOKEN=<your-pushover-api-token>
    PUSHOVER_USER=<your-pushover-user-key>
    OPENAI_API_KEY=<your-openai-api-key>
    PROMPT_FILE=<path-to-prompt-file>
    SLEEP_DELAY=600
+   SMTP_SERVER=<your-smtp-server>
+   SMTP_PORT=<your-smtp-port>
+   SMTP_LOGIN=<your-smtp-username>
+   SMTP_PASSWORD=<your-smtp-password>
    TELEGRAM_BOT_TOKEN=<your-telegram-bot-token>
    TELEGRAM_CHANNEL_ID=<your-telegram-channel-id>
    TMPDIR=/tmp
