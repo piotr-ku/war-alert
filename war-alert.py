@@ -267,7 +267,8 @@ def usr1_handler(sig, frame):
     # Process the news
     process_news(News(
         "Everything is fine, it's just a test.",
-        "We are testing the system. Please do not panic.",
+        "We are testing the system. Please do not panic. Test time: " +
+            time.strftime("%Y-%m-%dT%H:%M:%S", time.localtime()),
         time.strftime("%Y-%m-%dT%H:%M:%S", time.localtime()),
         "System test"))
 
