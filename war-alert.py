@@ -11,7 +11,6 @@ import requests
 import signal
 import sys
 import time
-import urllib
 import xml.etree
 import xml.etree.ElementTree
 
