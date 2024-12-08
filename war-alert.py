@@ -7,7 +7,6 @@ import json
 import logging
 import notifications.telegram
 import notifications.pushover
-import openai
 import os
 import sources.rss
 import signal
