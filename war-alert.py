@@ -255,9 +255,26 @@ def signal_handler(sig, frame):
     }))
     sys.exit(0)
 
-# Handle the SIGTERM and SIGINT signals
+def usr1_handler(sig, frame):
+    """
+        Handle the SIGUSR1 signal.
+    """
+    logger.warning(json.dumps({
+        "time": time.strftime("%Y-%m-%dT%H:%M:%S", time.localtime()),
+        "signal": signal.Signals(sig).name,
+    }))
+
+    # Process the news
+    process_news(News(
+        "Everything is fine, it's just a test.",
+        "We are testing the system. Please do not panic.",
+        time.strftime("%Y-%m-%dT%H:%M:%S", time.localtime()),
+        "System test"))
+
+# Handle the SIGTERM, SIGINT and SIGUSR1 signals
 signal.signal(signal.SIGTERM, signal_handler)
 signal.signal(signal.SIGINT, signal_handler)
+signal.signal(signal.SIGUSR1, usr1_handler)
 
 if __name__ == "__main__":
     # Load the .env file
