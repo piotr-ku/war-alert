@@ -5,6 +5,7 @@ import dotenv
 import hashlib
 import json
 import logging
+import notifications.email
 import notifications.telegram
 import notifications.pushover
 import os
@@ -136,6 +137,16 @@ def process_news(news):
             logger
         )
 
+    # Send an email notification
+    if os.environ.get("EMAIL_TO") is not None:
+        for email in os.getenv("EMAIL_TO", "").split(" "):
+            notifications.email.notify(
+                email,
+                f"War alert: {news.title}",
+                f"{news.description}\n\n{parsed['justification']}\n\n{news.link}",
+                logger
+            )
+
 def signal_handler(sig, frame):
     """
         Handle the SIGKILL, SIGTERM and KeyboardInterrupt signals.
@@ -181,6 +192,10 @@ if __name__ == "__main__":
                 "time": time.strftime("%Y-%m-%dT%H:%M:%S", time.localtime()),
                 "url": url
             }))
+
+            # Validate the RSS source
+            if url == "":
+                continue
 
             # Get the RSS items
             items = sources.rss.get_items(url, logger)
