@@ -292,11 +292,26 @@ if __name__ == "__main__":
             }))
 
             # Get the RSS items
-            items = get_rss_items(url)
+            try:
+                items = get_rss_items(url)
+            except Exception as e:
+                logger.error(json.dumps({
+                    "time": time.strftime("%Y-%m-%dT%H:%M:%S", time.localtime()),
+                    "url": url,
+                    "exception": str(e)
+                }))
+                continue
 
             # Process the news
             for news in items:
-                process_news(news)
+                try:
+                    process_news(news)
+                except Exception as e:
+                    logger.error(json.dumps({
+                        "time": time.strftime("%Y-%m-%dT%H:%M:%S", time.localtime()),
+                        "url": url,
+                        "exception": str(e)
+                    }))
 
         # Sleep for the specified delay
         time.sleep(int(os.environ.get("SLEEP_DELAY", 600)))
