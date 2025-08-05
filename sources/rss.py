@@ -62,7 +62,15 @@ def get_items(url, logger):
     source = requests.get(url).text
 
     # Parse the RSS source in XML format
-    root = xml.etree.ElementTree.fromstring(source)
+    try:
+        root = xml.etree.ElementTree.fromstring(source)
+    except Exception as e:
+        logger.error(json.dumps({
+            "time": time.strftime("%Y-%m-%dT%H:%M:%S", time.localtime()),
+            "msg": "Error parsing RSS source",
+            "exception": str(e),
+        }))
+        return []
 
     # Return a list of items
     return [get_item(item, logger) for item in root.findall("./channel/item")]
