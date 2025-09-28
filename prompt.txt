@@ -25,7 +25,11 @@ Assume that NATO countries threatened by conflict are: Poland, Sweden, Finland, 
 
 Respond in JSON format:
 
-{"result": "<yes|no>", "justification": "<one sentence justification>"}
+{"result": "<yes|no>", "justification": "<justification>"}
+
+The "result" field should be set to "no" if the news concerns analyses, predictions, forecasts, potential events, or political commentary rather than facts.
+
+If the news fits the described scenarios, the <justification> placeholder should contain a summary of the news in English. If it does not fit, the justification should be given in one short sentence.
 
 Additionally, if the news is started by "Everything is fine, it's just a test.",
 respond with:
