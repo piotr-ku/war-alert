@@ -125,7 +125,7 @@ def process_news(news):
         # Send a Pushover notification
         notifications.pushover.notify(
             f"War alert: {news.title}",
-            f"{news.description}\n\n{parsed['justification']}\n\n{news.link}",
+            f"{parsed['justification']}\n\n{news.link}",
             logger
         )
 
@@ -133,7 +133,7 @@ def process_news(news):
     if os.getenv("TELEGRAM_BOT_TOKEN") is not None:
         notifications.telegram.notify(
             f"War alert: {news.title}",
-            f"{news.description}\n\n{parsed['justification']}\n\n{news.link}",
+            f"{parsed['justification']}\n\n{news.link}",
             logger
         )
 
@@ -143,7 +143,7 @@ def process_news(news):
             notifications.email.notify(
                 email,
                 f"War alert: {news.title}",
-                f"{news.description}\n\n{parsed['justification']}\n\n{news.link}",
+                f"{parsed['justification']}\n\n{news.link}",
                 logger
             )
 
