@@ -20,7 +20,7 @@ Does the news limited by "-----" describe any of the following scenarios?
 Assume that NATO countries threatened by conflict are: Poland, Sweden, Finland, Lithuania, Latvia, Estonia.
 
 -----
-<news>
+<content>
 -----
 
 Respond in JSON format:

@@ -1,10 +1,15 @@
 import json
 import html.parser
+import logging
 import requests
 import time
 import xml.etree.ElementTree
+from sources.base import Source
+from processors.base import Content, Processor
+from processors.unique import ProcessorUnique
+from processors.openai import ProcessorOpenAI
 
-class News:
+class News(Content):
     """
         A class to represent a news.
     """
@@ -54,42 +59,77 @@ def remove_tags(text):
     parser.feed(text)
     return parser.text
 
-def get_items(url, logger):
+class SourceRSS(Source):
     """
-        Return a list of RSS items from a URL.
+        A class to represent an RSS source.
     """
-    # Get the source of the RSS feed
-    source = requests.get(url).text
+    def __init__(self, url: str, logger: logging.Logger):
+        """
+            Initialize an RSS source.
+        """
+        self.url = url
+        self.logger = logger
 
-    # Parse the RSS source in XML format
-    try:
-        root = xml.etree.ElementTree.fromstring(source)
-    except Exception as e:
-        logger.error(json.dumps({
+    def processors(self) -> list[Processor]:
+        """
+            Return a list of processors.
+        """
+        return [ProcessorUnique, ProcessorOpenAI]
+
+    def fetch(self, logger) -> list[News]:
+        """
+            Return a list of RSS items from a URL.
+        """
+        # Log the URL
+        self.logger.info(json.dumps({
             "time": time.strftime("%Y-%m-%dT%H:%M:%S", time.localtime()),
-            "msg": "Error parsing RSS source",
-            "exception": str(e),
+            "source": "RSS",
+            "url": self.url,
         }))
-        return []
 
-    # Return a list of items
-    return [get_item(item, logger) for item in root.findall("./channel/item")]
+        # Get the source of the RSS feed
+        try:
+            source = requests.get(self.url).text
+        except Exception as e:
+            self.logger.error(json.dumps({
+                "time": time.strftime("%Y-%m-%dT%H:%M:%S", time.localtime()),
+                "url": self.url,
+                "exception": str(e),
+            }))
+            return []
 
-def get_item(element, logger):
-    """
-        Return an RSS item from an XML element.
-    """
-    try:
-        return News(
-            element.find("title").text,
-            remove_tags(element.find("description").text),
-            element.find("pubDate").text,
-            element.find("link").text,
-        )
-    except Exception as e:
-        logger.error(json.dumps({
-            "time": time.strftime("%Y-%m-%dT%H:%M:%S", time.localtime()),
-            "msg": "Error parsing RSS item",
-            "exception": str(e),
-        }))
-        return None
+        # Parse the RSS source in XML format
+        try:
+            root = xml.etree.ElementTree.fromstring(source)
+        except Exception as e:
+            self.logger.error(json.dumps({
+                "time": time.strftime("%Y-%m-%dT%H:%M:%S", time.localtime()),
+                "url": self.url,
+                "msg": "Error parsing RSS source",
+                "exception": str(e),
+            }))
+            return []
+
+        # Return a list of items
+        return [self.get_item(item) \
+            for item in root.findall("./channel/item")]
+
+    def get_item(self, element) -> News:
+        """
+            Return an RSS item from an XML element.
+        """
+        try:
+            return News(
+                element.find("title").text,
+                remove_tags(element.find("description").text),
+                element.find("pubDate").text,
+                element.find("link").text,
+            )
+        except Exception as e:
+            self.logger.error(json.dumps({
+                "time": time.strftime("%Y-%m-%dT%H:%M:%S", time.localtime()),
+                "url": self.url,
+                "msg": "Error parsing RSS item",
+                "exception": str(e),
+            }))
+            return None
