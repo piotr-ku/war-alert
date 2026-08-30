@@ -47,8 +47,13 @@ This script monitors RSS feeds for specific news alerts, processes them with Ope
    TELEGRAM_BOT_TOKEN=<your-telegram-bot-token>
    TELEGRAM_CHANNEL_ID=<your-telegram-channel-id>
    TMPDIR=/tmp
+   HEALTH_PORT=8080
+   WEBHOOK_PORT=8080
+   WEBHOOK_SECRET=<your-webhook-secret>
    ```
    Adjust `SLEEP_DELAY` (in seconds) and `TMPDIR` as needed.
+   Set `HEALTH_PORT` to expose a health check endpoint (`GET /health`).
+   Set `WEBHOOK_PORT` and `WEBHOOK_SECRET` to enable inbound webhooks.
 
 3. Modify the `prompt.txt` file with your OpenAI query template.
 
@@ -64,6 +69,57 @@ The script logs to `stdout` with detailed information about each step, including
 
 ### Notifications
 Relevant alerts are sent as Pushover notifications with the title "War Alert" and the justification from the OpenAI response.
+
+## Webhooks
+
+When `HEALTH_PORT` or `WEBHOOK_PORT` is set, the script starts an HTTP server alongside the polling loop. The `/health` endpoint is always available without authentication. Webhook endpoints require both `WEBHOOK_PORT` and `WEBHOOK_SECRET`.
+
+### Endpoints
+
+| Method | Path | Description |
+|--------|------|-------------|
+| `GET` | `/health` | Health check, returns `{"status": "ok"}` |
+| `POST` | `/webhook/alert` | Immediate notification (no AI filtering) |
+| `POST` | `/webhook/news` | AI-filtered notification (same as RSS) |
+
+All webhook endpoints require the header `Authorization: Bearer <WEBHOOK_SECRET>`.
+
+### Payload
+
+```json
+{
+  "title": "Required — alert or article title",
+  "description": "Optional — body text",
+  "pubDate": "Optional — defaults to current time",
+  "link": "Optional — defaults to empty string"
+}
+```
+
+### Examples
+
+```bash
+# Immediate alert
+curl -X POST http://localhost:8080/webhook/alert \
+  -H "Authorization: Bearer your-secret-token-here" \
+  -H "Content-Type: application/json" \
+  -d '{"title": "Air raid alert", "description": "Lviv", "link": "https://example.com"}'
+
+# News for AI processing
+curl -X POST http://localhost:8080/webhook/news \
+  -H "Authorization: Bearer your-secret-token-here" \
+  -H "Content-Type: application/json" \
+  -d '{"title": "NATO statement on...", "description": "Full text...", "link": "https://example.com/article"}'
+```
+
+### Responses
+
+| Code | Body | Meaning |
+|------|------|---------|
+| `200` | `{"status": "notified"}` | Notification sent |
+| `200` | `{"status": "ignored"}` | Duplicate or rejected by AI |
+| `400` | `{"error": "..."}` | Invalid JSON or missing title |
+| `401` | `{"error": "Unauthorized"}` | Missing or invalid Bearer token |
+| `404` | `{"error": "Not found"}` | Unknown path |
 
 ## Notes
 

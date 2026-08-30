@@ -1,8 +1,11 @@
 import os
 import hashlib
 import logging
+import threading
 from processors.base import Processor
 from processors.base import Content
+
+_hash_lock = threading.Lock()
 
 def tmp_file_name():
     """
@@ -47,11 +50,9 @@ class ProcessorUnique(Processor):
         """
             Process a content.
         """
-        # Check if the content has already been processed
         hash = calculate_md5_hash(str(content))
-        if search_hash_in_file(hash):
-            return None
-
-        # Write the hash to the temporary file
-        write_hash_to_file(hash)
+        with _hash_lock:
+            if search_hash_in_file(hash):
+                return None
+            write_hash_to_file(hash)
         return content

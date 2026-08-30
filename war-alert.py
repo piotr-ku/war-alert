@@ -18,6 +18,27 @@ from sources.base import Source
 from sources.rss import News, SourceRSS
 from processors.unique import ProcessorUnique
 from processors.openai import ProcessorOpenAI
+from processors.base import Content, Processor
+from webhooks.server import start_http_server
+
+def process_and_notify(
+    item: Content,
+    processors: list[type[Processor]],
+    logger: logging.Logger,
+) -> bool:
+    """
+        Process an item through processors and notifiers.
+        Returns True if a notification was sent.
+    """
+    for processor in processors:
+        if item is None:
+            break
+        item = processor().process(item, logger)
+    if item is not None:
+        for notifier in all_notifiers(logger):
+            notifier.notify(item, logger)
+        return True
+    return False
 
 def signal_handler(sig, frame):
     """
@@ -45,11 +66,7 @@ def usr1_handler(sig, frame):
             time.strftime("%Y-%m-%dT%H:%M:%S", time.localtime()),
         time.strftime("%Y-%m-%dT%H:%M:%S", time.localtime()),
         "https://github.com/piotr-ku/war-alert")
-    for processor in [ProcessorUnique, ProcessorOpenAI]:
-        content = processor().process(content, logger)
-    if content is not None:
-        for notifier in all_notifiers(logger):
-            notifier.notify(content, logger)
+    process_and_notify(content, [ProcessorUnique, ProcessorOpenAI], logger)
 
 # Handle the SIGTERM, SIGINT and SIGUSR1 signals
 signal.signal(signal.SIGTERM, signal_handler)
@@ -110,6 +127,16 @@ if __name__ == "__main__":
     # Load the .env file
     dotenv.load_dotenv()
 
+    http_port = os.environ.get("WEBHOOK_PORT") or os.environ.get("HEALTH_PORT")
+    if http_port is not None and http_port != "":
+        if os.environ.get("WEBHOOK_PORT") and not os.environ.get("WEBHOOK_SECRET"):
+            logger.error(json.dumps({
+                "time": time.strftime("%Y-%m-%dT%H:%M:%S", time.localtime()),
+                "msg": "WEBHOOK_SECRET is required when WEBHOOK_PORT is set",
+            }))
+            sys.exit(1)
+        start_http_server(logger, process_and_notify, int(http_port))
+
     # Infinite loop
     while True:
         try:
@@ -120,15 +147,9 @@ if __name__ == "__main__":
             for source in sources:
                 items = source.fetch(logger)
                 for item in items:
-                    # Loop through the processors
-                    for processor in source.processors():
-                        if item is None:
-                            continue
-                        item = processor().process(item, logger)
-                    if item is not None:
-                        # Loop through the notifiers
-                        for notifier in all_notifiers(logger):
-                            notifier.notify(item, logger)
+                    if item is None:
+                        continue
+                    process_and_notify(item, source.processors(), logger)
         except Exception as e:
             logger.error(json.dumps({
                 "time": time.strftime("%Y-%m-%dT%H:%M:%S", time.localtime()),
