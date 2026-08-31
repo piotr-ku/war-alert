@@ -34,8 +34,6 @@ def start_http_server(
     webhook_secret = secret
 
     class WebhookHandler(BaseHTTPRequestHandler):
-        process_and_notify = notify_fn
-        logger = app_logger
         secret = webhook_secret
 
         def log_message(self, format, *args):
@@ -94,7 +92,7 @@ def start_http_server(
             source: str,
         ) -> None:
             if not self._check_auth():
-                self.logger.warning(json.dumps({
+                app_logger.warning(json.dumps({
                     "time": time.strftime("%Y-%m-%dT%H:%M:%S", time.localtime()),
                     "source": "webhook",
                     "endpoint": self.path,
@@ -113,13 +111,13 @@ def start_http_server(
                 self._send_json(400, {"error": "Missing or invalid title"})
                 return
 
-            self.logger.info(json.dumps({
+            app_logger.info(json.dumps({
                 "time": time.strftime("%Y-%m-%dT%H:%M:%S", time.localtime()),
                 "source": source,
                 "title": content.title,
             }))
 
-            notified = self.process_and_notify(content, processors, self.logger)
+            notified = notify_fn(content, processors, app_logger)
             status = "notified" if notified else "ignored"
             self._send_json(200, {"status": status})
 
