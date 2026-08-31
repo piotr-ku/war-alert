@@ -458,7 +458,6 @@ class SourceNotam(Source):
                     "number": fields["number"],
                     "location": fields["location"],
                     "qcode": fields["qcode"],
-                    "text": fields["text"],
                 }
                 for fields in fields_list
             ],
