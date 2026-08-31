@@ -17,6 +17,13 @@ DEFAULT_BASE_URL = "https://api-nms.aim.faa.gov/nmsapi"
 DEFAULT_AUTH_URL = "https://api-nms.aim.faa.gov/v1/auth/token"
 DEFAULT_LOCATIONS = "EPWW EPWA"
 DEFAULT_QCODES = "QATLC,QRTCA,QRTCL,QRRCA"
+DEFAULT_PASSTHROUGH_QCODES = "QATLC"
+DEFAULT_TEXT_EXCLUDE = (
+    "PJE,PARAGLID,UAV FLT,UNMANNED,UAS FLT,"
+    "AIRSPACE USE PLAN,AUP,AIP SUP,"
+    "AREA MANAGER,STATE AVIATION,"
+    "TEMPORARY RESERVED,TEMPORARY RESTRICTED"
+)
 DEFAULT_REQUEST_DELAY = 1.1
 MAX_RATE_LIMIT_RETRIES = 2
 NOTAM_LINK = "https://notams.aim.faa.gov/notamSearch/"
@@ -258,6 +265,40 @@ def _qcode_prefixes() -> list[str]:
     return _parse_qcode_prefixes(raw)
 
 
+def _passthrough_qcodes() -> list[str]:
+    raw = os.environ.get("NOTAM_PASSTHROUGH_QCODES")
+    if raw is None:
+        return _parse_qcode_prefixes(DEFAULT_PASSTHROUGH_QCODES)
+    if raw.strip() == "":
+        return []
+    return _parse_qcode_prefixes(raw)
+
+
+def _exclude_patterns() -> list[str]:
+    raw = os.environ.get("NOTAM_TEXT_EXCLUDE")
+    if raw is None:
+        return [p.strip().upper() for p in DEFAULT_TEXT_EXCLUDE.split(",") if p.strip()]
+    if raw.strip() == "":
+        return []
+    return [p.strip().upper() for p in raw.split(",") if p.strip()]
+
+
+def _is_passthrough(qcode: str | None, prefixes: list[str] | None = None) -> bool:
+    if prefixes is None:
+        prefixes = _passthrough_qcodes()
+    return _qcode_matches(qcode, prefixes)
+
+
+def _exclude_reason(text: str, patterns: list[str] | None = None) -> str | None:
+    if patterns is None:
+        patterns = _exclude_patterns()
+    upper = text.upper()
+    for pattern in patterns:
+        if pattern in upper:
+            return pattern
+    return None
+
+
 def _classification() -> str | None:
     raw = os.environ.get("NOTAM_CLASSIFICATION")
     if raw is None:
@@ -350,6 +391,9 @@ class SourceNotam(Source):
         notams: list[Notam] = []
         seen_keys: set[str] = set()
         fetched_count = 0
+        filtered_count = 0
+        passthrough_prefixes = _passthrough_qcodes()
+        exclude_patterns = _exclude_patterns()
 
         delay = _request_delay()
         for index, location in enumerate(locations):
@@ -358,6 +402,19 @@ class SourceNotam(Source):
             for fields in location_notams:
                 if not _qcode_matches(fields["qcode"], qcode_prefixes):
                     continue
+
+                if not _is_passthrough(fields["qcode"], passthrough_prefixes):
+                    reason = _exclude_reason(fields["text"], exclude_patterns)
+                    if reason is not None:
+                        filtered_count += 1
+                        _log_notam_info(self.logger, {
+                            "msg": "NOTAM filtered as noise",
+                            "number": fields["number"],
+                            "location": fields["location"],
+                            "qcode": fields["qcode"],
+                            "reason": reason,
+                        })
+                        continue
 
                 dedup_key = _normalize_whitespace(
                     f"{fields['number']} {fields['location']}: {fields['text']}",
@@ -374,6 +431,7 @@ class SourceNotam(Source):
             "msg": "NOTAM fetch complete",
             "base_url": self.base_url,
             "fetched": fetched_count,
+            "filtered": filtered_count,
             "matched": len(notams),
         })
 
