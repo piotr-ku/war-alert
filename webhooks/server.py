@@ -29,11 +29,14 @@ def start_http_server(
     """
     secret = os.environ.get("WEBHOOK_SECRET", "")
     webhooks_enabled = secret != ""
+    notify_fn = process_and_notify
+    app_logger = logger
+    webhook_secret = secret
 
     class WebhookHandler(BaseHTTPRequestHandler):
-        process_and_notify = process_and_notify
-        logger = logger
-        secret = secret
+        process_and_notify = notify_fn
+        logger = app_logger
+        secret = webhook_secret
 
         def log_message(self, format, *args):
             return
