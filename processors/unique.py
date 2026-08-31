@@ -50,17 +50,20 @@ class ProcessorUnique(Processor):
         """
             Process a content.
         """
-        hash = calculate_md5_hash(str(content))
+        content_hash = calculate_md5_hash(str(content))
         with _hash_lock:
-            if search_hash_in_file(hash):
+            if search_hash_in_file(content_hash):
                 return None
+        content._unique_hash = content_hash
         return content
 
     def mark_seen(self, content: Content) -> None:
         """
             Mark a content as seen after successful notification.
         """
-        hash = calculate_md5_hash(str(content))
+        content_hash = getattr(content, "_unique_hash", None)
+        if content_hash is None:
+            content_hash = calculate_md5_hash(str(content))
         with _hash_lock:
-            if not search_hash_in_file(hash):
-                write_hash_to_file(hash)
+            if not search_hash_in_file(content_hash):
+                write_hash_to_file(content_hash)

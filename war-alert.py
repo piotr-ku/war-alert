@@ -31,10 +31,13 @@ def process_and_notify(
         Process an item through processors and notifiers.
         Returns True if a notification was sent.
     """
+    unique_content = None
     for processor in processors:
         if item is None:
             break
         item = processor().process(item, logger)
+        if processor is ProcessorUnique and item is not None:
+            unique_content = item
     if item is not None:
         notified = False
         for notifier in all_notifiers(logger):
@@ -43,6 +46,8 @@ def process_and_notify(
         if notified:
             ProcessorUnique().mark_seen(item)
         return notified
+    if unique_content is not None:
+        ProcessorUnique().mark_seen(unique_content)
     return False
 
 def signal_handler(sig, frame):
