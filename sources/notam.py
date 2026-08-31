@@ -131,6 +131,18 @@ def _parse_expires_in(value: Any) -> int:
         return 0
 
 
+def _auth_url() -> str:
+    return os.environ.get("FAA_NMS_AUTH_URL", DEFAULT_AUTH_URL)
+
+
+def _log_notam_info(logger: logging.Logger, payload: dict) -> None:
+    logger.info(json.dumps({
+        "time": time.strftime("%Y-%m-%dT%H:%M:%S", time.localtime()),
+        "source": "NOTAM",
+        **payload,
+    }, ensure_ascii=False))
+
+
 def _get_access_token(logger: logging.Logger) -> str | None:
     global _token, _token_expiry
 
@@ -139,11 +151,15 @@ def _get_access_token(logger: logging.Logger) -> str | None:
     if not client_id or not client_secret:
         return None
 
+    auth_url = _auth_url()
+
     with _token_lock:
         if _token is not None and time.time() < _token_expiry:
+            _log_notam_info(logger, {
+                "msg": "FAA NMS token reused",
+                "auth_url": auth_url,
+            })
             return _token
-
-        auth_url = os.environ.get("FAA_NMS_AUTH_URL", DEFAULT_AUTH_URL)
         credentials = base64.b64encode(
             f"{client_id}:{client_secret}".encode("utf-8"),
         ).decode("ascii")
@@ -193,6 +209,11 @@ def _get_access_token(logger: logging.Logger) -> str | None:
 
         _token = access_token
         _token_expiry = time.time() + max(expires_in - 60, 0)
+        _log_notam_info(logger, {
+            "msg": "FAA NMS token acquired",
+            "auth_url": auth_url,
+            "expires_in": expires_in,
+        })
         return _token
 
 
@@ -328,10 +349,13 @@ class SourceNotam(Source):
 
         notams: list[Notam] = []
         seen_keys: set[str] = set()
+        fetched_count = 0
 
         delay = _request_delay()
         for index, location in enumerate(locations):
-            for fields in self._fetch_location_notams(location, token):
+            location_notams = self._fetch_location_notams(location, token)
+            fetched_count += len(location_notams)
+            for fields in location_notams:
                 if not _qcode_matches(fields["qcode"], qcode_prefixes):
                     continue
 
@@ -345,6 +369,13 @@ class SourceNotam(Source):
 
             if index < len(locations) - 1:
                 time.sleep(delay)
+
+        _log_notam_info(self.logger, {
+            "msg": "NOTAM fetch complete",
+            "base_url": self.base_url,
+            "fetched": fetched_count,
+            "matched": len(notams),
+        })
 
         return notams
 
@@ -416,7 +447,23 @@ class SourceNotam(Source):
             }, ensure_ascii=False))
             return []
 
-        return _parse_nms_payload(payload, self.logger, location)
+        fields_list = _parse_nms_payload(payload, self.logger, location)
+        _log_notam_info(self.logger, {
+            "msg": "FAA NMS NOTAMs fetched",
+            "base_url": self.base_url,
+            "location": location,
+            "count": len(fields_list),
+            "notams": [
+                {
+                    "number": fields["number"],
+                    "location": fields["location"],
+                    "qcode": fields["qcode"],
+                    "text": fields["text"],
+                }
+                for fields in fields_list
+            ],
+        })
+        return fields_list
 
     def _prepare_notam(self, fields: dict, dedup_key: str) -> Notam:
         """
