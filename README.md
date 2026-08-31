@@ -5,6 +5,7 @@ This script monitors RSS feeds for specific news alerts, processes them with Ope
 ## Features
 
 - Fetches and parses RSS feeds.
+- Monitors FAA NMS NOTAMs for Polish airspace restrictions.
 - Detects duplicate news items using MD5 hashes.
 - Processes news items using OpenAI's API with custom prompts.
 - Sends notifications via Pushover for relevant alerts.
@@ -47,6 +48,11 @@ This script monitors RSS feeds for specific news alerts, processes them with Ope
    TELEGRAM_BOT_TOKEN=<your-telegram-bot-token>
    TELEGRAM_CHANNEL_ID=<your-telegram-channel-id>
    TMPDIR=/tmp
+   FAA_NMS_CLIENT_ID=<your-faa-nms-client-id>
+   FAA_NMS_CLIENT_SECRET=<your-faa-nms-client-secret>
+   NOTAM_LOCATIONS="EPWW EPWA"
+   NOTAM_QCODES="QATLC,QRTCA,QRTCL,QRRCA"
+   NOTAM_CLASSIFICATION=INTERNATIONAL
    HEALTH_PORT=8080
    WEBHOOK_PORT=8080
    WEBHOOK_SECRET=<your-webhook-secret>
@@ -54,6 +60,7 @@ This script monitors RSS feeds for specific news alerts, processes them with Ope
    Adjust `SLEEP_DELAY` (in seconds) and `TMPDIR` as needed.
    Set `HEALTH_PORT` to expose a health check endpoint (`GET /health`).
    Set `WEBHOOK_PORT` and `WEBHOOK_SECRET` to enable inbound webhooks.
+   Set `FAA_NMS_CLIENT_ID` and `FAA_NMS_CLIENT_SECRET` to enable NOTAM monitoring via the FAA NMS API (request access at notams@faa.gov). Use `NOTAM_LOCATIONS` (space-separated ICAO codes, default `EPWW EPWA`) and `NOTAM_QCODES` (comma-separated Q-code prefixes) to filter airspace closure notices. Optionally set `NOTAM_CLASSIFICATION` (`INTERNATIONAL`, `DOMESTIC`, `MILITARY`, `LOCAL_MILITARY`, `FDC`) to narrow API results; leave unset or empty to fetch all active NOTAMs for each location. For staging, override `FAA_NMS_BASE_URL` and `FAA_NMS_AUTH_URL` (see `.env.example`).
 
 3. Modify the `prompt.txt` file with your OpenAI query template.
 
@@ -69,6 +76,9 @@ The script logs to `stdout` with detailed information about each step, including
 
 ### Notifications
 Relevant alerts are sent as Pushover notifications with the title "War Alert" and the justification from the OpenAI response.
+
+### NOTAM monitoring
+When FAA NMS credentials are configured, the script polls active NOTAMs for the locations in `NOTAM_LOCATIONS` and notifies on matches for `NOTAM_QCODES` (airspace closures and restrictions). Notifications are deduplicated via `ProcessorUnique`; standing restrictions such as EPR129/EP130 are reported once on first sight. `QATLC` matches patterns like the Warsaw CTR/TMA closure during the September 2025 drone incident. By default no `classification` filter is sent to the API (broader results); set `NOTAM_CLASSIFICATION=INTERNATIONAL` to restore the narrower scope. Staging endpoints: `FAA_NMS_BASE_URL=https://api-staging.cgifederal-aim.com/nmsapi` and `FAA_NMS_AUTH_URL=https://api-staging.cgifederal-aim.com/v1/auth/token`.
 
 ## Webhooks
 

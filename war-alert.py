@@ -15,6 +15,7 @@ from notifiers.telegram import NotifierTelegram
 from sources.alertsua import SourceAlertsInUa
 from sources.alertsua import url as alertsua_url
 from sources.base import Source
+from sources.notam import SourceNotam
 from sources.rss import News, SourceRSS
 from processors.unique import ProcessorUnique
 from processors.openai import ProcessorOpenAI
@@ -83,6 +84,13 @@ def all_sources(logger: logging.Logger) -> list[Source]:
     if os.environ.get("ALERTSUA_TOKEN") is not None \
         and os.environ.get("ALERTSUA_TOKEN") != "":
         all_sources.append(SourceAlertsInUa(alertsua_url, logger))
+
+    # Add the NOTAM source if FAA NMS credentials are set
+    if os.environ.get("FAA_NMS_CLIENT_ID") is not None \
+        and os.environ.get("FAA_NMS_CLIENT_ID") != "" \
+        and os.environ.get("FAA_NMS_CLIENT_SECRET") is not None \
+        and os.environ.get("FAA_NMS_CLIENT_SECRET") != "":
+        all_sources.append(SourceNotam(logger))
 
     # Add the RSS sources if the URLs are set
     if os.environ.get("RSS_URLS") is not None \
