@@ -6,8 +6,8 @@ class Notifier(ABC):
         A base class for all notifiers.
     """
     @abstractmethod
-    def notify(self, content: Content, logger) -> None:
+    def notify(self, content: Content, logger) -> bool:
         """
-            Notify a content.
+            Notify a content. Returns True on success.
         """
-        return
+        return False

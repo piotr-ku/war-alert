@@ -17,6 +17,8 @@ DEFAULT_BASE_URL = "https://api-nms.aim.faa.gov/nmsapi"
 DEFAULT_AUTH_URL = "https://api-nms.aim.faa.gov/v1/auth/token"
 DEFAULT_LOCATIONS = "EPWW EPWA"
 DEFAULT_QCODES = "QATLC,QRTCA,QRTCL,QRRCA"
+DEFAULT_REQUEST_DELAY = 1.1
+MAX_RATE_LIMIT_RETRIES = 2
 NOTAM_LINK = "https://notams.aim.faa.gov/notamSearch/"
 
 _token_lock = threading.Lock()
@@ -245,6 +247,16 @@ def _classification() -> str | None:
     return value
 
 
+def _request_delay() -> float:
+    raw = os.environ.get("NOTAM_REQUEST_DELAY")
+    if raw is None or raw.strip() == "":
+        return DEFAULT_REQUEST_DELAY
+    try:
+        return max(float(raw), 0.0)
+    except ValueError:
+        return DEFAULT_REQUEST_DELAY
+
+
 def _parse_nms_payload(
     payload: dict,
     logger: logging.Logger,
@@ -317,7 +329,8 @@ class SourceNotam(Source):
         notams: list[Notam] = []
         seen_keys: set[str] = set()
 
-        for location in locations:
+        delay = _request_delay()
+        for index, location in enumerate(locations):
             for fields in self._fetch_location_notams(location, token):
                 if not _qcode_matches(fields["qcode"], qcode_prefixes):
                     continue
@@ -329,6 +342,9 @@ class SourceNotam(Source):
                     continue
                 seen_keys.add(dedup_key)
                 notams.append(self._prepare_notam(fields, dedup_key))
+
+            if index < len(locations) - 1:
+                time.sleep(delay)
 
         return notams
 
@@ -348,26 +364,43 @@ class SourceNotam(Source):
         if classification is not None:
             params["classification"] = classification
 
-        try:
-            response = requests.get(url, headers=headers, params=params, timeout=30)
-        except Exception as e:
-            self.logger.error(json.dumps({
-                "time": time.strftime("%Y-%m-%dT%H:%M:%S", time.localtime()),
-                "source": "NOTAM",
-                "location": location,
-                "msg": "Error fetching NOTAMs from FAA NMS",
-                "exception": str(e),
-            }, ensure_ascii=False))
-            return []
+        delay = _request_delay()
+        max_attempts = MAX_RATE_LIMIT_RETRIES + 1
+        response = None
 
-        if response.status_code != 200:
+        for attempt in range(max_attempts):
+            try:
+                response = requests.get(url, headers=headers, params=params, timeout=30)
+            except Exception as e:
+                self.logger.error(json.dumps({
+                    "time": time.strftime("%Y-%m-%dT%H:%M:%S", time.localtime()),
+                    "source": "NOTAM",
+                    "location": location,
+                    "msg": "Error fetching NOTAMs from FAA NMS",
+                    "exception": str(e),
+                }, ensure_ascii=False))
+                return []
+
+            if response.status_code == 429 and attempt < max_attempts - 1:
+                self.logger.warning(json.dumps({
+                    "time": time.strftime("%Y-%m-%dT%H:%M:%S", time.localtime()),
+                    "source": "NOTAM",
+                    "location": location,
+                    "msg": "FAA NMS rate limit hit, retrying",
+                    "retry": attempt + 1,
+                }, ensure_ascii=False))
+                time.sleep(delay)
+                continue
+            break
+
+        if response is None or response.status_code != 200:
             self.logger.error(json.dumps({
                 "time": time.strftime("%Y-%m-%dT%H:%M:%S", time.localtime()),
                 "source": "NOTAM",
                 "location": location,
                 "msg": "Error fetching NOTAMs from FAA NMS",
-                "status": response.status_code,
-                "response": response.text,
+                "status": response.status_code if response is not None else None,
+                "response": response.text if response is not None else "",
             }, ensure_ascii=False))
             return []
 

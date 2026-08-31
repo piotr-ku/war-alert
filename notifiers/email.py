@@ -18,13 +18,13 @@ class NotifierEmail(Notifier):
         self.sender = os.environ.get("EMAIL_FROM", "")
         self.recipient = recipient
 
-    def notify(self, content: Content, logger: logging.Logger) -> None:
+    def notify(self, content: Content, logger: logging.Logger) -> bool:
         """
             Notify a content.
         """
         # Validation
         if self.recipient == "":
-            return
+            return False
 
         # Create an email message
         msg = email.message.EmailMessage()
@@ -51,11 +51,11 @@ class NotifierEmail(Notifier):
                 "msg": "Email notification sent",
                 "to": self.recipient,
             }, ensure_ascii=False))
+            return True
         except Exception as e:
             logger.error(json.dumps({
                 "time": time.strftime("%Y-%m-%dT%H:%M:%S", time.localtime()),
                 "msg": "Error sending email notification",
                 "exception": str(e),
             }, ensure_ascii=False))
-            return
-        return
+            return False

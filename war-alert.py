@@ -36,9 +36,13 @@ def process_and_notify(
             break
         item = processor().process(item, logger)
     if item is not None:
+        notified = False
         for notifier in all_notifiers(logger):
-            notifier.notify(item, logger)
-        return True
+            if notifier.notify(item, logger):
+                notified = True
+        if notified:
+            ProcessorUnique().mark_seen(item)
+        return notified
     return False
 
 def signal_handler(sig, frame):

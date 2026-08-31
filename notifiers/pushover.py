@@ -16,7 +16,7 @@ class NotifierPushover(Notifier):
         """
         self.api_url = "https://api.pushover.net/1/messages.json"
 
-    def notify(self, content: Content, logger: logging.Logger) -> None:
+    def notify(self, content: Content, logger: logging.Logger) -> bool:
         """
             Send a Pushover notification.
         """
@@ -35,7 +35,7 @@ class NotifierPushover(Notifier):
                 "msg": "Error sending Pushover notification",
                 "exception": str(e),
             }, ensure_ascii=False))
-            return
+            return False
 
         # Check the response
         if response.status_code != 200:
@@ -45,5 +45,6 @@ class NotifierPushover(Notifier):
                 "info": response.headers,
                 "response": response.text,
             }, ensure_ascii=False))
+            return False
 
-        return
+        return True

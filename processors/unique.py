@@ -54,5 +54,13 @@ class ProcessorUnique(Processor):
         with _hash_lock:
             if search_hash_in_file(hash):
                 return None
-            write_hash_to_file(hash)
         return content
+
+    def mark_seen(self, content: Content) -> None:
+        """
+            Mark a content as seen after successful notification.
+        """
+        hash = calculate_md5_hash(str(content))
+        with _hash_lock:
+            if not search_hash_in_file(hash):
+                write_hash_to_file(hash)
