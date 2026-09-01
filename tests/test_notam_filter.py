@@ -124,12 +124,20 @@ NOISE_CORPUS = [
         "TEMPORARY RESERVED AREA EPTR327 - MIL ACT. "
         "TIME OF ACTIVITY ACCORDING TO AIRSPACE USE PLAN (AUP).",
     ),
+    (
+        "D5086/26",
+        "QRTCA",
+        "REF AIP IFR ENR 5.2.1.2, EPTR153 IS TEMPORARY AVBL FOR REQUEST AND ACTIVATION H24.",
+    ),
 ]
 
 
 class TestNotamPassthrough(unittest.TestCase):
     def test_qatlc_is_passthrough(self):
         self.assertTrue(_is_passthrough("QATLC"))
+
+    def test_qrpca_is_passthrough(self):
+        self.assertTrue(_is_passthrough("QRPCA"))
 
     def test_qrtca_is_not_passthrough(self):
         self.assertFalse(_is_passthrough("QRTCA"))
@@ -138,6 +146,14 @@ class TestNotamPassthrough(unittest.TestCase):
         text = "WARSAW TMA CLOSED. TIME OF ACT ACCORDING TO AIRSPACE USE PLAN (AUP)."
         self.assertTrue(_is_passthrough("QATLC"))
         # Passthrough bypasses text filter even when exclude patterns match.
+        self.assertIsNotNone(_exclude_reason(text))
+
+    def test_qrpca_passthrough_with_aup_text(self):
+        text = (
+            "DUE TO THE CRISIS SITUATION IN UKRAINE, NO PLANNING ZONES ARE "
+            "MANAGED BY AMC POLAND VIA AUP/UUP."
+        )
+        self.assertTrue(_is_passthrough("QRPCA"))
         self.assertIsNotNone(_exclude_reason(text))
 
 
@@ -167,6 +183,34 @@ class TestNotamExcludeReason(unittest.TestCase):
         text = "TEMPORARY RESERVED AREA - PJE. AIRSPACE USE PLAN."
         self.assertTrue(_is_passthrough("QATLC"))
 
+    def test_epr131_standing_restriction_passes(self):
+        text = (
+            "RESTRICTED AREA EPR131. WITHIN AREA ALL FLIGHTS ARE PROHIBITED EXC: "
+            "- GARDA, ALPHA SCRAMBLE FLIGHTS "
+            "- CIVIL UNMANNED AERIAL VEHICLES EXC ADIZ BIALORUS AND ADIZ UKRAINE "
+            "- STATE AVIATION FLIGHTS AND FLIGHTS OF AIR MEDICAL RESCUE (LPR)"
+        )
+        self.assertFalse(_is_passthrough("QRRCA"))
+        self.assertIsNone(_exclude_reason(text, self.patterns))
+
+    def test_qrmxx_state_security_passes(self):
+        text = (
+            "NAV WRNG FOR AIRSPACE: UNPLANNED MILITARY ACTIVITY RELATED TO "
+            "ENSURING STATE SECURITY CAN BE EXPECTED WITHIN THE AREA."
+        )
+        self.assertFalse(_is_passthrough("QRMXX"))
+        self.assertIsNone(_exclude_reason(text, self.patterns))
+
+    def test_unmanned_aerial_vehicles_flights_matches_across_newline(self):
+        text = (
+            "TEMPORARY RESERVED AREA EPTR415 - RUBNO WIELKIE (UNMANNED AERIAL\n"
+            "VEHICLES FLIGHTS). TIME OF ACT ACCORDING TO AIRSPACE USE PLAN."
+        )
+        self.assertEqual(
+            _exclude_reason(text, self.patterns),
+            "UNMANNED AERIAL VEHICLES FLIGHTS",
+        )
+
 
 class TestNotamFilterEnv(unittest.TestCase):
     def tearDown(self):
@@ -177,6 +221,7 @@ class TestNotamFilterEnv(unittest.TestCase):
         os.environ["NOTAM_PASSTHROUGH_QCODES"] = ""
         self.assertEqual(_passthrough_qcodes(), [])
         self.assertFalse(_is_passthrough("QATLC"))
+        self.assertFalse(_is_passthrough("QRPCA"))
 
     def test_empty_exclude_disables_text_filter(self):
         os.environ["NOTAM_TEXT_EXCLUDE"] = ""

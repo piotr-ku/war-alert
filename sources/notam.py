@@ -16,13 +16,15 @@ from sources.base import Source
 DEFAULT_BASE_URL = "https://api-nms.aim.faa.gov/nmsapi"
 DEFAULT_AUTH_URL = "https://api-nms.aim.faa.gov/v1/auth/token"
 DEFAULT_LOCATIONS = "EPWW EPWA"
-DEFAULT_QCODES = "QATLC,QRTCA,QRTCL,QRRCA"
-DEFAULT_PASSTHROUGH_QCODES = "QATLC"
+DEFAULT_QCODES = "QATLC,QRTCA,QRTCL,QRRCA,QRPCA,QRMXX"
+DEFAULT_PASSTHROUGH_QCODES = "QATLC,QRPCA"
 DEFAULT_TEXT_EXCLUDE = (
-    "PJE,PARAGLID,UAV FLT,UNMANNED,UAS FLT,"
+    "PJE,PARAGLID,UAV FLT,UAS FLT,"
+    "UNMANNED AERIAL VEHICLES FLIGHTS,"
     "AIRSPACE USE PLAN,AUP,AIP SUP,"
-    "AREA MANAGER,STATE AVIATION,"
-    "TEMPORARY RESERVED,TEMPORARY RESTRICTED"
+    "AREA MANAGER,"
+    "TEMPORARY RESERVED,TEMPORARY RESTRICTED,"
+    "AVBL FOR REQUEST,TEMPORARY AVBL"
 )
 DEFAULT_REQUEST_DELAY = 1.1
 MAX_RATE_LIMIT_RETRIES = 2
@@ -310,7 +312,7 @@ def _is_passthrough(qcode: str | None, prefixes: list[str] | None = None) -> boo
 def _exclude_reason(text: str, patterns: list[str] | None = None) -> str | None:
     if patterns is None:
         patterns = _exclude_patterns()
-    upper = text.upper()
+    upper = _normalize_whitespace(text).upper()
     for pattern in patterns:
         if pattern in upper:
             return pattern
