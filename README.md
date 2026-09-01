@@ -57,8 +57,10 @@ This script monitors RSS feeds for specific news alerts, processes them with Ope
    HEALTH_PORT=8080
    WEBHOOK_PORT=8080
    WEBHOOK_SECRET=<your-webhook-secret>
+   LOG_LEVEL=INFO
    ```
    Adjust `SLEEP_DELAY` (in seconds) and `TMPDIR` as needed.
+   Set `LOG_LEVEL` to `DEBUG` to include per-item NOTAM dumps and noise-filter details (default `INFO`).
    Set `HEALTH_PORT` to expose a health check endpoint (`GET /health`).
    Set `WEBHOOK_PORT` and `WEBHOOK_SECRET` to enable inbound webhooks.
    Set `FAA_NMS_CLIENT_ID` and `FAA_NMS_CLIENT_SECRET` to enable NOTAM monitoring via the FAA NMS API (request access at notams@faa.gov). Use `NOTAM_LOCATIONS` (space-separated ICAO codes, default `EPWW EPWA`) and `NOTAM_QCODES` (comma-separated Q-code prefixes) to filter airspace closure notices. `NOTAM_PASSTHROUGH_QCODES` (default `QATLC`) always passes through without text filtering — use this for TMA/CTR closures. Routine TRA/PJE/UAV/AUP noise is filtered via `NOTAM_TEXT_EXCLUDE` (comma-separated substrings; see `.env.example` for defaults). Set either variable to empty to disable that stage. Optionally set `NOTAM_CLASSIFICATION` (`INTERNATIONAL`, `DOMESTIC`, `MILITARY`, `LOCAL_MILITARY`, `FDC`) to narrow API results; leave unset or empty to fetch all active NOTAMs for each location. For staging, override `FAA_NMS_BASE_URL` and `FAA_NMS_AUTH_URL` (see `.env.example`).
@@ -73,7 +75,7 @@ Run the script using:
 ```
 
 ### Logging
-The script logs to `stdout` with detailed information about each step, including any errors encountered during API calls or processing.
+The script logs JSON lines to `stdout`. Set `LOG_LEVEL` (`DEBUG`, `INFO`, `WARNING`, `ERROR`; default `INFO`) to control verbosity. `DEBUG` includes per-item NOTAM dumps and noise-filter details.
 
 ### Notifications
 Relevant alerts are sent as Pushover notifications with the title "War Alert" and the justification from the OpenAI response.
@@ -81,7 +83,7 @@ Relevant alerts are sent as Pushover notifications with the title "War Alert" an
 ### NOTAM monitoring
 When FAA NMS credentials are configured, the script polls active NOTAMs for the locations in `NOTAM_LOCATIONS` and notifies on matches for `NOTAM_QCODES` (airspace closures and restrictions). A two-stage noise filter reduces routine operational NOTAMs: `NOTAM_PASSTHROUGH_QCODES` (default `QATLC`) always alerts — this covers TMA/CTR closures such as the Warsaw incident in September 2025; other matched Q-codes are dropped when their text contains any substring from `NOTAM_TEXT_EXCLUDE` (default: PJE, paragliding, UAV, AUP, AIP SUP, area manager, state aviation, temporary reserved/restricted). Notifications are deduplicated via `ProcessorUnique`; standing restrictions such as EPR129/EP130 are reported once on first sight. By default no `classification` filter is sent to the API (broader results); set `NOTAM_CLASSIFICATION=INTERNATIONAL` to restore the narrower scope. Staging endpoints: `FAA_NMS_BASE_URL=https://api-staging.cgifederal-aim.com/nmsapi` and `FAA_NMS_AUTH_URL=https://api-staging.cgifederal-aim.com/v1/auth/token`. The FAA staging API enforces ~1 request/s per client; use `NOTAM_REQUEST_DELAY` (default `1.1`) to pace location queries. On first run many NOTAMs may match at once; Telegram notifications are throttled via `TELEGRAM_MIN_INTERVAL` (default `1.0` s) with automatic retry on HTTP 429. Items are marked as seen after they are processed (including when a downstream processor such as OpenAI rejects them) or after at least one notifier succeeds; only failed deliveries are retried on the next poll cycle.
 
-Each NOTAM poll cycle logs `info` lines to confirm connectivity and data: `FAA NMS token acquired` or `FAA NMS token reused` (with `auth_url`, so you can verify staging vs production), `FAA NMS NOTAMs fetched` per location (with `base_url`, `count`, and parsed `notams`: number, location, qcode), `NOTAM filtered as noise` for dropped routine items, and `NOTAM fetch complete` with total `fetched`, `filtered`, and `matched` counts.
+Each NOTAM poll cycle logs a short `info` summary: `NOTAM source configured` once at startup (locations, Q-codes, `base_url` / `auth_url`), `FAA NMS token acquired` when a new token is issued, `NOTAM matched` for each item that passes the filters (number, location, qcode, and full text), `NOTAM noise filtered` with a reason histogram when routine items are dropped, and `NOTAM fetch complete` with `fetched`, `skipped_qcode`, `filtered`, `duplicates`, `matched`, `duration_ms`, and per-location counts. Token reuse, the full per-location NOTAM list, and per-item `NOTAM filtered as noise` lines (including full text) are `debug` only. `ProcessorUnique` logs `Content skipped as duplicate` at `debug` when a standing match is already seen.
 
 ## Webhooks
 

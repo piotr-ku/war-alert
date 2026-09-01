@@ -1,7 +1,9 @@
 import os
 import hashlib
+import json
 import logging
 import threading
+import time
 from processors.base import Processor
 from processors.base import Content
 
@@ -53,6 +55,14 @@ class ProcessorUnique(Processor):
         content_hash = calculate_md5_hash(str(content))
         with _hash_lock:
             if search_hash_in_file(content_hash):
+                payload = {
+                    "time": time.strftime("%Y-%m-%dT%H:%M:%S", time.localtime()),
+                    "msg": "Content skipped as duplicate",
+                }
+                title = getattr(content, "title", None)
+                if title:
+                    payload["title"] = title
+                logger.debug(json.dumps(payload, ensure_ascii=False))
                 return None
         content._unique_hash = content_hash
         return content

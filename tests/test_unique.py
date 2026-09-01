@@ -1,4 +1,5 @@
 import importlib.util
+import json
 import logging
 import os
 import sys
@@ -73,6 +74,34 @@ class TestProcessorUnique(unittest.TestCase):
 
         self.assertIsNone(ProcessorUnique().process(StubContent("fallback"), self.logger))
 
+    def test_duplicate_logs_debug_with_title(self):
+        records = []
+
+        class RecordingHandler(logging.Handler):
+            def __init__(self):
+                super().__init__()
+
+            def emit(self, record):
+                records.append(record)
+
+        handler = RecordingHandler()
+        self.logger.addHandler(handler)
+        self.logger.setLevel(logging.DEBUG)
+        self.addCleanup(self.logger.removeHandler, handler)
+
+        content = News("Title", "description", "2026-01-01", "http://example.com")
+        ProcessorUnique().mark_seen(content)
+        self.assertIsNone(ProcessorUnique().process(content, self.logger))
+
+        debug_messages = [
+            json.loads(record.getMessage())
+            for record in records
+            if record.levelno == logging.DEBUG
+        ]
+        self.assertTrue(debug_messages)
+        self.assertEqual(debug_messages[0]["msg"], "Content skipped as duplicate")
+        self.assertEqual(debug_messages[0]["title"], "Title")
+
 
 class TestProcessAndNotify(unittest.TestCase):
     @classmethod
@@ -140,6 +169,26 @@ class TestProcessAndNotify(unittest.TestCase):
             News("Title", "description", "2026-01-01", "http://example.com"),
             self.logger,
         ))
+
+
+class TestLogLevel(unittest.TestCase):
+    def tearDown(self):
+        os.environ.pop("LOG_LEVEL", None)
+
+    def test_default_is_info(self):
+        os.environ.pop("LOG_LEVEL", None)
+        war_alert = load_war_alert()
+        self.assertEqual(war_alert._log_level(), logging.INFO)
+
+    def test_debug_from_env(self):
+        os.environ["LOG_LEVEL"] = "debug"
+        war_alert = load_war_alert()
+        self.assertEqual(war_alert._log_level(), logging.DEBUG)
+
+    def test_invalid_falls_back_to_info(self):
+        os.environ["LOG_LEVEL"] = "nope"
+        war_alert = load_war_alert()
+        self.assertEqual(war_alert._log_level(), logging.INFO)
 
 
 if __name__ == "__main__":

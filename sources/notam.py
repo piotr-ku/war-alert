@@ -31,6 +31,7 @@ NOTAM_LINK = "https://notams.aim.faa.gov/notamSearch/"
 _token_lock = threading.Lock()
 _token: str | None = None
 _token_expiry: float = 0.0
+_logged_source_config = False
 
 _QCODE_LINE_RE = re.compile(r"Q\)\s+\w+/([A-Z]{5})/", re.IGNORECASE)
 _QCODE_PLACEHOLDERS = frozenset({"QXXXX", ""})
@@ -142,12 +143,32 @@ def _auth_url() -> str:
     return os.environ.get("FAA_NMS_AUTH_URL", DEFAULT_AUTH_URL)
 
 
-def _log_notam_info(logger: logging.Logger, payload: dict) -> None:
-    logger.info(json.dumps({
+def _log_notam(
+    logger: logging.Logger,
+    payload: dict,
+    level: int = logging.INFO,
+) -> None:
+    logger.log(level, json.dumps({
         "time": time.strftime("%Y-%m-%dT%H:%M:%S", time.localtime()),
         "source": "NOTAM",
         **payload,
     }, ensure_ascii=False))
+
+
+def _log_source_config_once(logger: logging.Logger, base_url: str) -> None:
+    global _logged_source_config
+    if _logged_source_config:
+        return
+    _logged_source_config = True
+    _log_notam(logger, {
+        "msg": "NOTAM source configured",
+        "locations": _locations(),
+        "qcodes": _qcode_prefixes(),
+        "passthrough_qcodes": _passthrough_qcodes(),
+        "base_url": base_url,
+        "auth_url": _auth_url(),
+        "classification": _classification(),
+    })
 
 
 def _get_access_token(logger: logging.Logger) -> str | None:
@@ -162,10 +183,10 @@ def _get_access_token(logger: logging.Logger) -> str | None:
 
     with _token_lock:
         if _token is not None and time.time() < _token_expiry:
-            _log_notam_info(logger, {
+            _log_notam(logger, {
                 "msg": "FAA NMS token reused",
                 "auth_url": auth_url,
-            })
+            }, level=logging.DEBUG)
             return _token
         credentials = base64.b64encode(
             f"{client_id}:{client_secret}".encode("utf-8"),
@@ -183,22 +204,20 @@ def _get_access_token(logger: logging.Logger) -> str | None:
                 timeout=30,
             )
         except Exception as e:
-            logger.error(json.dumps({
-                "time": time.strftime("%Y-%m-%dT%H:%M:%S", time.localtime()),
-                "source": "NOTAM",
+            _log_notam(logger, {
                 "msg": "Error requesting FAA NMS token",
+                "auth_url": auth_url,
                 "exception": str(e),
-            }, ensure_ascii=False))
+            }, level=logging.ERROR)
             return None
 
         if response.status_code != 200:
-            logger.error(json.dumps({
-                "time": time.strftime("%Y-%m-%dT%H:%M:%S", time.localtime()),
-                "source": "NOTAM",
+            _log_notam(logger, {
                 "msg": "Error requesting FAA NMS token",
+                "auth_url": auth_url,
                 "status": response.status_code,
                 "response": response.text,
-            }, ensure_ascii=False))
+            }, level=logging.ERROR)
             return None
 
         try:
@@ -206,17 +225,16 @@ def _get_access_token(logger: logging.Logger) -> str | None:
             access_token = payload["access_token"]
             expires_in = _parse_expires_in(payload.get("expires_in", 3600))
         except (KeyError, json.JSONDecodeError) as e:
-            logger.error(json.dumps({
-                "time": time.strftime("%Y-%m-%dT%H:%M:%S", time.localtime()),
-                "source": "NOTAM",
+            _log_notam(logger, {
                 "msg": "Error parsing FAA NMS token response",
+                "auth_url": auth_url,
                 "exception": str(e),
-            }, ensure_ascii=False))
+            }, level=logging.ERROR)
             return None
 
         _token = access_token
         _token_expiry = time.time() + max(expires_in - 60, 0)
-        _log_notam_info(logger, {
+        _log_notam(logger, {
             "msg": "FAA NMS token acquired",
             "auth_url": auth_url,
             "expires_in": expires_in,
@@ -326,14 +344,12 @@ def _parse_nms_payload(
 ) -> list[dict]:
     status = payload.get("status", "")
     if not isinstance(status, str) or status.lower() != "success":
-        logger.error(json.dumps({
-            "time": time.strftime("%Y-%m-%dT%H:%M:%S", time.localtime()),
-            "source": "NOTAM",
-            "location": location,
+        _log_notam(logger, {
             "msg": "FAA NMS returned non-success status",
+            "location": location,
             "status": status,
             "errors": payload.get("errors", []),
-        }, ensure_ascii=False))
+        }, level=logging.ERROR)
         return []
 
     data = payload.get("data")
@@ -375,14 +391,10 @@ class SourceNotam(Source):
         """
             Return a list of NOTAMs matching configured Q-code filters.
         """
+        _log_source_config_once(self.logger, self.base_url)
+
         locations = _locations()
         qcode_prefixes = _qcode_prefixes()
-        self.logger.info(json.dumps({
-            "time": time.strftime("%Y-%m-%dT%H:%M:%S", time.localtime()),
-            "source": "NOTAM",
-            "locations": locations,
-            "qcodes": qcode_prefixes,
-        }))
 
         token = _get_access_token(self.logger)
         if token is None:
@@ -392,47 +404,85 @@ class SourceNotam(Source):
         seen_keys: set[str] = set()
         fetched_count = 0
         filtered_count = 0
+        skipped_qcode = 0
+        duplicate_count = 0
+        location_stats: dict[str, dict[str, int]] = {}
+        noise_reasons: dict[str, int] = {}
         passthrough_prefixes = _passthrough_qcodes()
         exclude_patterns = _exclude_patterns()
 
         delay = _request_delay()
+        started = time.monotonic()
         for index, location in enumerate(locations):
-            location_notams = self._fetch_location_notams(location, token)
+            location_notams, duration_ms = self._fetch_location_notams(
+                location,
+                token,
+            )
             fetched_count += len(location_notams)
+            location_stats[location] = {
+                "count": len(location_notams),
+                "duration_ms": duration_ms,
+            }
             for fields in location_notams:
                 if not _qcode_matches(fields["qcode"], qcode_prefixes):
+                    skipped_qcode += 1
                     continue
 
-                if not _is_passthrough(fields["qcode"], passthrough_prefixes):
+                passthrough = _is_passthrough(
+                    fields["qcode"],
+                    passthrough_prefixes,
+                )
+                if not passthrough:
                     reason = _exclude_reason(fields["text"], exclude_patterns)
                     if reason is not None:
                         filtered_count += 1
-                        _log_notam_info(self.logger, {
+                        noise_reasons[reason] = noise_reasons.get(reason, 0) + 1
+                        _log_notam(self.logger, {
                             "msg": "NOTAM filtered as noise",
                             "number": fields["number"],
                             "location": fields["location"],
                             "qcode": fields["qcode"],
                             "reason": reason,
-                        })
+                            "text": fields["text"],
+                        }, level=logging.DEBUG)
                         continue
 
                 dedup_key = _normalize_whitespace(
                     f"{fields['number']} {fields['location']}: {fields['text']}",
                 )
                 if dedup_key in seen_keys:
+                    duplicate_count += 1
                     continue
                 seen_keys.add(dedup_key)
                 notams.append(self._prepare_notam(fields, dedup_key))
+                _log_notam(self.logger, {
+                    "msg": "NOTAM matched",
+                    "number": fields["number"],
+                    "location": fields["location"],
+                    "qcode": fields["qcode"],
+                    "passthrough": passthrough,
+                    "text": fields["text"],
+                })
 
             if index < len(locations) - 1:
                 time.sleep(delay)
 
-        _log_notam_info(self.logger, {
+        if filtered_count:
+            _log_notam(self.logger, {
+                "msg": "NOTAM noise filtered",
+                "count": filtered_count,
+                "reasons": noise_reasons,
+            })
+
+        _log_notam(self.logger, {
             "msg": "NOTAM fetch complete",
-            "base_url": self.base_url,
             "fetched": fetched_count,
+            "skipped_qcode": skipped_qcode,
             "filtered": filtered_count,
+            "duplicates": duplicate_count,
             "matched": len(notams),
+            "duration_ms": int((time.monotonic() - started) * 1000),
+            "locations": location_stats,
         })
 
         return notams
@@ -441,7 +491,7 @@ class SourceNotam(Source):
         self,
         location: str,
         token: str,
-    ) -> list[dict]:
+    ) -> tuple[list[dict], int]:
         url = f"{self.base_url}/v1/notams"
         headers = {
             "Authorization": f"Bearer {token}",
@@ -456,61 +506,58 @@ class SourceNotam(Source):
         delay = _request_delay()
         max_attempts = MAX_RATE_LIMIT_RETRIES + 1
         response = None
+        started = time.monotonic()
 
         for attempt in range(max_attempts):
             try:
                 response = requests.get(url, headers=headers, params=params, timeout=30)
             except Exception as e:
-                self.logger.error(json.dumps({
-                    "time": time.strftime("%Y-%m-%dT%H:%M:%S", time.localtime()),
-                    "source": "NOTAM",
-                    "location": location,
+                _log_notam(self.logger, {
                     "msg": "Error fetching NOTAMs from FAA NMS",
+                    "location": location,
                     "exception": str(e),
-                }, ensure_ascii=False))
-                return []
+                }, level=logging.ERROR)
+                return [], int((time.monotonic() - started) * 1000)
 
             if response.status_code == 429 and attempt < max_attempts - 1:
-                self.logger.warning(json.dumps({
-                    "time": time.strftime("%Y-%m-%dT%H:%M:%S", time.localtime()),
-                    "source": "NOTAM",
-                    "location": location,
+                _log_notam(self.logger, {
                     "msg": "FAA NMS rate limit hit, retrying",
+                    "location": location,
                     "retry": attempt + 1,
-                }, ensure_ascii=False))
+                }, level=logging.WARNING)
                 time.sleep(delay)
                 continue
             break
 
+        duration_ms = int((time.monotonic() - started) * 1000)
+
         if response is None or response.status_code != 200:
-            self.logger.error(json.dumps({
-                "time": time.strftime("%Y-%m-%dT%H:%M:%S", time.localtime()),
-                "source": "NOTAM",
-                "location": location,
+            _log_notam(self.logger, {
                 "msg": "Error fetching NOTAMs from FAA NMS",
+                "location": location,
                 "status": response.status_code if response is not None else None,
                 "response": response.text if response is not None else "",
-            }, ensure_ascii=False))
-            return []
+                "duration_ms": duration_ms,
+            }, level=logging.ERROR)
+            return [], duration_ms
 
         try:
             payload = response.json()
         except json.JSONDecodeError as e:
-            self.logger.error(json.dumps({
-                "time": time.strftime("%Y-%m-%dT%H:%M:%S", time.localtime()),
-                "source": "NOTAM",
-                "location": location,
+            _log_notam(self.logger, {
                 "msg": "Error parsing FAA NMS NOTAM response",
+                "location": location,
                 "exception": str(e),
-            }, ensure_ascii=False))
-            return []
+                "duration_ms": duration_ms,
+            }, level=logging.ERROR)
+            return [], duration_ms
 
         fields_list = _parse_nms_payload(payload, self.logger, location)
-        _log_notam_info(self.logger, {
+        _log_notam(self.logger, {
             "msg": "FAA NMS NOTAMs fetched",
-            "base_url": self.base_url,
             "location": location,
             "count": len(fields_list),
+            "duration_ms": duration_ms,
             "notams": [
                 {
                     "number": fields["number"],
@@ -519,8 +566,8 @@ class SourceNotam(Source):
                 }
                 for fields in fields_list
             ],
-        })
-        return fields_list
+        }, level=logging.DEBUG)
+        return fields_list, duration_ms
 
     def _prepare_notam(self, fields: dict, dedup_key: str) -> Notam:
         """

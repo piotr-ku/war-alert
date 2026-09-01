@@ -135,14 +135,24 @@ def all_notifiers(logger: logging.Logger) -> list[Notifier]:
 
     return all_notifiers
 
+def _log_level() -> int:
+    raw = os.environ.get("LOG_LEVEL", "INFO")
+    if raw is None or raw.strip() == "":
+        return logging.INFO
+    level = getattr(logging, raw.strip().upper(), None)
+    if isinstance(level, int):
+        return level
+    return logging.INFO
+
+
 if __name__ == "__main__":
     # Create a logger and set stdout as a handler
     logger = logging.getLogger(__name__)
-    logger.setLevel(logging.DEBUG)
     logger.addHandler(logging.StreamHandler(sys.stdout))
 
     # Load the .env file
     dotenv.load_dotenv()
+    logger.setLevel(_log_level())
 
     http_port = os.environ.get("WEBHOOK_PORT") or os.environ.get("HEALTH_PORT")
     if http_port is not None and http_port != "":
