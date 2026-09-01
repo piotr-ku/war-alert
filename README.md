@@ -67,6 +67,35 @@ This script monitors RSS feeds for specific news alerts, processes them with Ope
 
 3. Modify the `prompt.txt` file with your OpenAI query template.
 
+## Docker
+
+Run with Docker Compose:
+
+```bash
+cp .env.example .env
+# edit .env with your credentials
+docker compose up -d
+```
+
+The HTTP server listens on port `8080` inside the container. On the host it is bound to `127.0.0.1` only (default port `8080`, override with `WEBHOOK_PORT` in `.env`).
+
+### Reverse proxy (nginx)
+
+To attach the container to an existing Docker network (e.g. shared with nginx), set in `.env`:
+
+```env
+DOCKER_NETWORK=existing-network
+DOCKER_NETWORK_EXTERNAL=true
+```
+
+Then point nginx at the container by name:
+
+```nginx
+resolver 127.0.0.11 valid=30s;
+set $upstream_war_alert war-alert;
+proxy_pass http://$upstream_war_alert:8080;
+```
+
 ## Usage
 
 Run the script using:
