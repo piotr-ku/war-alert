@@ -17,6 +17,7 @@ from sources.alertsua import url as alertsua_url
 from sources.base import Source
 from sources.notam import SourceNotam
 from sources.rss import News, SourceRSS
+from sources.twitterapi import SourceTwitterAPI
 from processors.unique import ProcessorUnique
 from processors.openai import ProcessorOpenAI
 from processors.base import Content, Processor
@@ -106,6 +107,13 @@ def all_sources(logger: logging.Logger) -> list[Source]:
         and os.environ.get("RSS_URLS") != "":
         for url in os.environ.get("RSS_URLS").split():
             all_sources.append(SourceRSS(url, logger))
+
+    # Add the TwitterAPI source if the key and usernames are set
+    if os.environ.get("TWITTERAPI_KEY") is not None \
+        and os.environ.get("TWITTERAPI_KEY") != "" \
+        and os.environ.get("TWITTERAPI_USERNAMES") is not None \
+        and os.environ.get("TWITTERAPI_USERNAMES") != "":
+        all_sources.append(SourceTwitterAPI(logger))
 
     return all_sources
 

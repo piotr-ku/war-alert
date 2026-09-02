@@ -5,6 +5,7 @@ This script monitors RSS feeds for specific news alerts, processes them with Ope
 ## Features
 
 - Fetches and parses RSS feeds.
+- Monitors configured Twitter/X accounts via twitterapi.io.
 - Monitors FAA NMS NOTAMs for Polish airspace restrictions.
 - Detects duplicate news items using MD5 hashes.
 - Processes news items using OpenAI's API with custom prompts.
@@ -47,6 +48,8 @@ This script monitors RSS feeds for specific news alerts, processes them with Ope
    SMTP_PASSWORD=<your-smtp-password>
    TELEGRAM_BOT_TOKEN=<your-telegram-bot-token>
    TELEGRAM_CHANNEL_ID=<your-telegram-channel-id>
+   TWITTERAPI_KEY=<your-twitterapi-io-api-key>
+   TWITTERAPI_USERNAMES=<space-separated-twitter-handles>
    TMPDIR=/tmp
    FAA_NMS_CLIENT_ID=<your-faa-nms-client-id>
    FAA_NMS_CLIENT_SECRET=<your-faa-nms-client-secret>
@@ -63,6 +66,7 @@ This script monitors RSS feeds for specific news alerts, processes them with Ope
    Set `LOG_LEVEL` to `DEBUG` to include per-item NOTAM dumps and noise-filter details (default `INFO`).
    Set `HEALTH_PORT` to expose a health check endpoint (`GET /health`).
    Set `WEBHOOK_PORT` and `WEBHOOK_SECRET` to enable inbound webhooks.
+   Set `TWITTERAPI_KEY` and `TWITTERAPI_USERNAMES` to enable Twitter/X monitoring via [twitterapi.io](https://twitterapi.io/dashboard). Each poll fetches the first page (up to 20 tweets) per configured handle using `GET /twitter/user/last_tweets`; tweets are deduplicated and filtered through OpenAI like RSS. Optionally override `TWITTERAPI_BASE_URL` (see `.env.example`).
    Set `FAA_NMS_CLIENT_ID` and `FAA_NMS_CLIENT_SECRET` to enable NOTAM monitoring via the FAA NMS API (request access at notams@faa.gov). Use `NOTAM_LOCATIONS` (space-separated ICAO codes, default `EPWW EPWA`) and `NOTAM_QCODES` (comma-separated Q-code prefixes) to filter airspace closure notices. `NOTAM_PASSTHROUGH_QCODES` (default `QATLC,QRPCA`) always passes through without text filtering — use this for TMA/CTR closures and Ukraine-crisis NPZ notices. Routine TRA/PJE/UAV/AUP noise is filtered via `NOTAM_TEXT_EXCLUDE` (comma-separated substrings; see `.env.example` for defaults). Set either variable to empty to disable that stage. Optionally set `NOTAM_CLASSIFICATION` (`INTERNATIONAL`, `DOMESTIC`, `MILITARY`, `LOCAL_MILITARY`, `FDC`) to narrow API results; leave unset or empty to fetch all active NOTAMs for each location. For staging, override `FAA_NMS_BASE_URL` and `FAA_NMS_AUTH_URL` (see `.env.example`).
 
 3. Modify the `prompt.txt` file with your OpenAI query template.
@@ -113,6 +117,9 @@ Relevant alerts are sent as Pushover notifications with the title "War Alert" an
 When FAA NMS credentials are configured, the script polls active NOTAMs for the locations in `NOTAM_LOCATIONS` and notifies on matches for `NOTAM_QCODES` (airspace closures, restrictions, prohibited areas, and military warnings). A two-stage noise filter reduces routine operational NOTAMs: `NOTAM_PASSTHROUGH_QCODES` (default `QATLC,QRPCA`) always alerts — this covers TMA/CTR closures such as the Warsaw incident in September 2025 and Ukraine-crisis NPZ notices; other matched Q-codes are dropped when their text contains any substring from `NOTAM_TEXT_EXCLUDE` (default: PJE, paragliding, UAV, AUP, AIP SUP, area manager, temporary reserved/restricted, TRA availability). Notifications are deduplicated via `ProcessorUnique`; standing restrictions such as EPR129/EP130/EPR131 are reported once on first sight. By default no `classification` filter is sent to the API (broader results); set `NOTAM_CLASSIFICATION=INTERNATIONAL` to restore the narrower scope. Staging endpoints: `FAA_NMS_BASE_URL=https://api-staging.cgifederal-aim.com/nmsapi` and `FAA_NMS_AUTH_URL=https://api-staging.cgifederal-aim.com/v1/auth/token`. The FAA staging API enforces ~1 request/s per client; use `NOTAM_REQUEST_DELAY` (default `1.1`) to pace location queries. On first run many NOTAMs may match at once; Telegram notifications are throttled via `TELEGRAM_MIN_INTERVAL` (default `1.0` s) with automatic retry on HTTP 429. Items are marked as seen after they are processed (including when a downstream processor such as OpenAI rejects them) or after at least one notifier succeeds; only failed deliveries are retried on the next poll cycle.
 
 Each NOTAM poll cycle logs a short `info` summary: `NOTAM source configured` once at startup (locations, Q-codes, `base_url` / `auth_url`), `FAA NMS token acquired` when a new token is issued, `NOTAM matched` for each item that passes the filters (number, location, qcode, and full text), `NOTAM noise filtered` with a reason histogram when routine items are dropped, and `NOTAM fetch complete` with `fetched`, `skipped_qcode`, `filtered`, `duplicates`, `matched`, `duration_ms`, and per-location counts. Token reuse, the full per-location NOTAM list, and per-item `NOTAM filtered as noise` lines (including full text) are `debug` only. `ProcessorUnique` logs `Content skipped as duplicate` at `debug` when a standing match is already seen.
+
+### Twitter monitoring
+When `TWITTERAPI_KEY` and `TWITTERAPI_USERNAMES` are configured, the script polls the first page of recent tweets (up to 20 per handle) from each configured account. Tweets are processed through `ProcessorUnique` and `ProcessorOpenAI` like RSS items. Duplicate tweets are skipped on subsequent poll cycles.
 
 ## Webhooks
 
