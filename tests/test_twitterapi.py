@@ -35,6 +35,18 @@ def _tweet_payload(index: int, username: str = "DefenceU") -> dict:
 
 def _api_response(tweets: list[dict]) -> dict:
     return {
+        "status": "success",
+        "code": 0,
+        "msg": "success",
+        "data": {
+            "pin_tweet": None,
+            "tweets": tweets,
+        },
+    }
+
+
+def _legacy_api_response(tweets: list[dict]) -> dict:
+    return {
         "tweets": tweets,
         "has_next_page": len(tweets) >= 20,
         "next_cursor": "next-page",
@@ -129,17 +141,27 @@ class TestSourceTwitterAPI(unittest.TestCase):
         response = Mock()
         response.status_code = 200
         response.json.return_value = {
-            "tweets": [],
-            "has_next_page": False,
-            "next_cursor": "",
             "status": "error",
-            "message": "user not found",
+            "msg": "user not found",
+            "data": {"tweets": []},
         }
 
         with patch("sources.twitterapi.requests.get", return_value=response):
             result = SourceTwitterAPI(self.logger).fetch(self.logger)
 
         self.assertEqual(result, [])
+
+    def test_extracts_tweets_from_legacy_top_level_format(self):
+        tweets = [_tweet_payload(1)]
+        response = Mock()
+        response.status_code = 200
+        response.json.return_value = _legacy_api_response(tweets)
+
+        with patch("sources.twitterapi.requests.get", return_value=response):
+            result = SourceTwitterAPI(self.logger).fetch(self.logger)
+
+        self.assertEqual(len(result), 1)
+        self.assertEqual(result[0].description, "tweet 1")
 
     def test_missing_author_skips_item(self):
         payload = _tweet_payload(1)

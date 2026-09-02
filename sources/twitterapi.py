@@ -108,6 +108,18 @@ def _prepare_tweet(raw: dict[str, Any], username: str, logger: logging.Logger) -
     )
 
 
+def _extract_tweets(payload: dict) -> list | None:
+    data = payload.get("data")
+    if isinstance(data, dict):
+        tweets = data.get("tweets")
+        if isinstance(tweets, list):
+            return tweets
+    tweets = payload.get("tweets")
+    if isinstance(tweets, list):
+        return tweets
+    return None
+
+
 class SourceTwitterAPI(Source):
     """
         A class to represent the twitterapi.io source.
@@ -197,12 +209,17 @@ class SourceTwitterAPI(Source):
                 "source": "TwitterAPI",
                 "msg": "Error fetching tweets",
                 "username": username,
-                "api_message": payload.get("message"),
+                "api_message": payload.get("msg") or payload.get("message"),
             }, level=logging.ERROR)
             return []
 
-        tweets = payload.get("tweets")
-        if not isinstance(tweets, list):
+        tweets = _extract_tweets(payload)
+        if tweets is None:
+            _log(self.logger, {
+                "source": "TwitterAPI",
+                "msg": "No tweets in API response",
+                "username": username,
+            }, level=logging.DEBUG)
             return []
 
         items: list[Tweet] = []
