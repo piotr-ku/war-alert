@@ -4,15 +4,17 @@ import os
 import sys
 
 import dotenv
-from telethon.sync import TelegramClient
 from telethon.sessions import StringSession
 
 from sources.telegram import (
-    _api_hash,
-    _api_id,
     _session_file,
     _session_string,
+    authorize_telegram_client,
+    build_telegram_client,
+    disconnect_telegram_client,
+    is_session_locked_error,
     telegram_credentials_configured,
+    telegram_session_locked_hint,
 )
 
 
@@ -27,34 +29,38 @@ def main() -> int:
         )
         return 1
 
-    api_id = _api_id()
-    if api_id is None:
-        print("TELEGRAM_API_ID must be an integer.", file=sys.stderr)
-        return 1
-
     session_string = _session_string()
     if session_string != "":
-        session = StringSession(session_string)
         session_path = None
     else:
-        session = _session_file()
-        session_path = session
+        session_path = _session_file()
 
     phone = os.environ.get("TELEGRAM_PHONE", "").strip() or None
+    client = build_telegram_client()
 
-    with TelegramClient(session, api_id, _api_hash()) as client:
-        client.start(phone=phone)
+    try:
+        authorize_telegram_client(client, phone=phone)
+    except Exception as exc:
+        if is_session_locked_error(exc):
+            print(telegram_session_locked_hint(), file=sys.stderr)
+        raise
+    else:
+        if client.is_user_authorized():
+            if session_path is not None:
+                print(f"Session saved to {session_path}")
+            else:
+                print("Authorized with TELEGRAM_SESSION_STRING.")
 
-        if session_path is not None:
-            print(f"Session saved to {session_path}")
+            if session_string == "":
+                exported = StringSession.save(client.session)
+                print()
+                print("Optional: copy this into TELEGRAM_SESSION_STRING for Docker:")
+                print(exported)
         else:
-            print("Authorized with TELEGRAM_SESSION_STRING.")
-
-        if session_string == "":
-            exported = StringSession.save(client.session)
-            print()
-            print("Optional: copy this into TELEGRAM_SESSION_STRING for Docker:")
-            print(exported)
+            print("Telegram authorization failed.", file=sys.stderr)
+            return 1
+    finally:
+        disconnect_telegram_client(client)
 
     return 0
 

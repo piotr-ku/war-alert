@@ -72,7 +72,7 @@ This script monitors RSS feeds for specific news alerts, processes them with Ope
    Set `HEALTH_PORT` to expose a health check endpoint (`GET /health`).
    Set `WEBHOOK_PORT` and `WEBHOOK_SECRET` to enable inbound webhooks.
    Set `TWITTERAPI_KEY` and `TWITTERAPI_USERNAMES` to enable Twitter/X monitoring via [twitterapi.io](https://twitterapi.io/dashboard). Each poll fetches the first page (up to 20 tweets) per configured handle using `GET /twitter/user/last_tweets`; tweets are deduplicated and filtered through OpenAI like RSS. Optionally override `TWITTERAPI_BASE_URL` (see `.env.example`).
-   Set `TELEGRAM_API_ID` and `TELEGRAM_API_HASH` (from [my.telegram.org](https://my.telegram.org)) plus `telegram.yaml` to monitor Telegram channels via a **user account** (Telethon). The notification bot (`TELEGRAM_BOT_TOKEN`) cannot read third-party channels. Run `python3 telegram_login.py` once to create `telegram.session` (or copy the printed `TELEGRAM_SESSION_STRING` for Docker). Each channel has per-channel regex filters in YAML; only matching posts are sent to OpenAI. See `telegram.yaml` for the example `@AMK_Mapping` configuration.
+   Set `TELEGRAM_API_ID` and `TELEGRAM_API_HASH` (from [my.telegram.org](https://my.telegram.org)) plus `telegram.yaml` to monitor Telegram channels via a **user account** (Telethon). The notification bot (`TELEGRAM_BOT_TOKEN`) cannot read third-party channels. Run `python3 telegram_login.py` once to create `telegram.session`. Each channel has per-channel regex filters in YAML; only matching posts are sent to OpenAI. See `telegram.yaml` for the example `@AMK_Mapping` configuration.
    Set `FAA_NMS_CLIENT_ID` and `FAA_NMS_CLIENT_SECRET` to enable NOTAM monitoring via the FAA NMS API (request access at notams@faa.gov). Use `NOTAM_LOCATIONS` (space-separated ICAO codes, default `EPWW EPWA`) and `NOTAM_QCODES` (comma-separated Q-code prefixes) to filter airspace closure notices. `NOTAM_PASSTHROUGH_QCODES` (default `QATLC,QRPCA`) always passes through without text filtering — use this for TMA/CTR closures and Ukraine-crisis NPZ notices. Routine TRA/PJE/UAV/AUP noise is filtered via `NOTAM_TEXT_EXCLUDE` (comma-separated substrings; see `.env.example` for defaults). Set either variable to empty to disable that stage. Optionally set `NOTAM_CLASSIFICATION` (`INTERNATIONAL`, `DOMESTIC`, `MILITARY`, `LOCAL_MILITARY`, `FDC`) to narrow API results; leave unset or empty to fetch all active NOTAMs for each location. For staging, override `FAA_NMS_BASE_URL` and `FAA_NMS_AUTH_URL` (see `.env.example`).
 
 3. Modify the `prompt.txt` file with your OpenAI query template.
@@ -128,7 +128,21 @@ Each NOTAM poll cycle logs a short `info` summary: `NOTAM source configured` onc
 When `TWITTERAPI_KEY` and `TWITTERAPI_USERNAMES` are configured, the script polls the first page of recent tweets (up to 20 per handle) from each configured account. Tweets are processed through `ProcessorUnique` and `ProcessorOpenAI` like RSS items. Duplicate tweets are skipped on subsequent poll cycles.
 
 ### Telegram channel monitoring
-When `TELEGRAM_API_ID`, `TELEGRAM_API_HASH`, and `telegram.yaml` are configured, the script polls recent posts from each listed channel using Telethon. Posts are filtered by per-channel regex patterns in YAML before deduplication and OpenAI processing. Run `python3 telegram_login.py` once to authorize the user session (`telegram.session` or `TELEGRAM_SESSION_STRING`). Regex-filtered drops are logged at `DEBUG`; each poll logs `Telegram fetch complete` with `fetched`, `filtered`, `matched`, and `posts` counts.
+When `TELEGRAM_API_ID`, `TELEGRAM_API_HASH`, and `telegram.yaml` are configured, the script polls recent posts from each listed channel using Telethon. Posts are filtered by per-channel regex patterns in YAML before deduplication and OpenAI processing. The client connects at the start of each poll and disconnects afterwards, so `telegram.session` is not held open between cycles.
+
+**First-time login (file session):**
+
+```bash
+docker compose stop war-alert
+docker compose run --rm -it war-alert python3 telegram_login.py
+docker compose up -d
+```
+
+Set `TELEGRAM_PHONE=+48...` in `.env` to skip the interactive phone prompt. Login requires `-it` (SMS code). Do not run `telegram_login.py` while `war-alert` is running — the session file cannot be opened by two processes at once.
+
+If you see `Server sent a very old message` or `Security error` in logs, stop war-alert, delete `telegram.session` and `telegram.session-journal`, then log in again.
+
+Regex-filtered drops are logged at `DEBUG`; each poll logs `Telegram fetch complete` with `fetched`, `filtered`, `matched`, and `posts` counts.
 
 ## Webhooks
 

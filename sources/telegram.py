@@ -2,13 +2,14 @@ import json
 import logging
 import os
 import re
-import threading
+import sqlite3
 import time
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
 
 import yaml
+from telethon.errors import SecurityError
 from telethon.sync import TelegramClient
 from telethon.sessions import StringSession
 
@@ -21,8 +22,6 @@ DEFAULT_CHANNELS_FILE = "./telegram.yaml"
 DEFAULT_SESSION_FILE = "telegram.session"
 DEFAULT_CHANNEL_LIMIT = 20
 
-_client_lock = threading.Lock()
-_client: TelegramClient | None = None
 _logged_source_config = False
 
 
@@ -247,7 +246,28 @@ def _prepare_post(
     )
 
 
-def _build_client() -> TelegramClient:
+def telegram_session_locked_hint() -> str:
+    return (
+        "telegram.session is locked by another process. "
+        "Stop war-alert before logging in: docker compose stop war-alert"
+    )
+
+
+def telegram_session_out_of_sync_hint() -> str:
+    return (
+        "Telegram session is out of sync. Stop war-alert, delete "
+        "telegram.session and telegram.session-journal, then run "
+        "python3 telegram_login.py and restart war-alert."
+    )
+
+
+def is_session_locked_error(exc: BaseException) -> bool:
+    if isinstance(exc, sqlite3.OperationalError):
+        return "locked" in str(exc).lower()
+    return "database is locked" in str(exc).lower()
+
+
+def build_telegram_client() -> TelegramClient:
     api_id = _api_id()
     if api_id is None:
         raise RuntimeError("TELEGRAM_API_ID is not configured")
@@ -265,45 +285,64 @@ def _build_client() -> TelegramClient:
     return TelegramClient(session, api_id, api_hash)
 
 
-def get_telegram_client(logger: logging.Logger) -> TelegramClient | None:
-    global _client
+def authorize_telegram_client(
+    client: TelegramClient,
+    phone: str | None = None,
+) -> None:
+    if not client.is_connected():
+        client.connect()
 
+    if client.is_user_authorized():
+        return
+
+    if phone:
+        client.start(phone=phone)
+    else:
+        client.start()
+
+
+def disconnect_telegram_client(client: TelegramClient | None) -> None:
+    if client is None:
+        return
+    try:
+        if client.is_connected():
+            client.disconnect()
+    except Exception:
+        pass
+
+
+def connect_telegram_client(logger: logging.Logger) -> TelegramClient | None:
     if not telegram_credentials_configured():
         return None
 
-    with _client_lock:
-        if _client is not None:
-            return _client
-
-        try:
-            client = _build_client()
-            client.connect()
-            if not client.is_user_authorized():
-                _log(logger, {
-                    "msg": "Telegram user session is not authorized; run telegram_login.py",
-                }, level=logging.ERROR)
-                client.disconnect()
-                return None
-            _client = client
-            return _client
-        except Exception as exc:
+    try:
+        client = build_telegram_client()
+        client.connect()
+        if not client.is_user_authorized():
+            _log(logger, {
+                "msg": "Telegram user session is not authorized; run telegram_login.py",
+            }, level=logging.ERROR)
+            disconnect_telegram_client(client)
+            return None
+        return client
+    except Exception as exc:
+        if is_session_locked_error(exc):
+            _log(logger, {
+                "msg": "Telegram session file is locked",
+                "hint": telegram_session_locked_hint(),
+                "exception": str(exc),
+            }, level=logging.ERROR)
+        else:
             _log(logger, {
                 "msg": "Error connecting Telegram client",
                 "exception": str(exc),
             }, level=logging.ERROR)
-            return None
+        return None
 
 
 def reset_telegram_client() -> None:
-    global _client
-
-    with _client_lock:
-        if _client is not None:
-            try:
-                _client.disconnect()
-            except Exception:
-                pass
-            _client = None
+    """Kept for tests; connections are no longer pooled."""
+    return None
 
 
 class SourceTelegram(Source):
@@ -342,34 +381,37 @@ class SourceTelegram(Source):
             })
             _logged_source_config = True
 
-        client = get_telegram_client(self.logger)
+        client = connect_telegram_client(self.logger)
         if client is None:
             return []
 
-        items: list[TelegramPost] = []
-        total_fetched = 0
-        total_filtered = 0
-        total_matched = 0
+        try:
+            items: list[TelegramPost] = []
+            total_fetched = 0
+            total_filtered = 0
+            total_matched = 0
 
-        for channel in self.channels:
-            fetched, filtered, matched, channel_items = self._fetch_channel(
-                client,
-                channel,
-            )
-            total_fetched += fetched
-            total_filtered += filtered
-            total_matched += matched
-            items.extend(channel_items)
+            for channel in self.channels:
+                fetched, filtered, matched, channel_items = self._fetch_channel(
+                    client,
+                    channel,
+                )
+                total_fetched += fetched
+                total_filtered += filtered
+                total_matched += matched
+                items.extend(channel_items)
 
-        _log(self.logger, {
-            "msg": "Telegram fetch complete",
-            "channels": len(self.channels),
-            "fetched": total_fetched,
-            "filtered": total_filtered,
-            "matched": total_matched,
-            "posts": len(items),
-        })
-        return items
+            _log(self.logger, {
+                "msg": "Telegram fetch complete",
+                "channels": len(self.channels),
+                "fetched": total_fetched,
+                "filtered": total_filtered,
+                "matched": total_matched,
+                "posts": len(items),
+            })
+            return items
+        finally:
+            disconnect_telegram_client(client)
 
     def _fetch_channel(
         self,
@@ -385,6 +427,14 @@ class SourceTelegram(Source):
         try:
             entity = client.get_entity(username)
             messages = client.get_messages(entity, limit=channel.limit)
+        except SecurityError as exc:
+            _log(self.logger, {
+                "msg": "Telegram session security error",
+                "username": username,
+                "hint": telegram_session_out_of_sync_hint(),
+                "exception": str(exc),
+            }, level=logging.ERROR)
+            return fetched, filtered, matched, items
         except Exception as exc:
             _log(self.logger, {
                 "msg": "Error fetching Telegram channel",

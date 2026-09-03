@@ -1,6 +1,7 @@
 import importlib.util
 import logging
 import os
+import sqlite3
 import sys
 import tempfile
 import textwrap
@@ -14,10 +15,15 @@ from sources.telegram import (
     ChannelConfig,
     SourceTelegram,
     TelegramPost,
+    authorize_telegram_client,
+    connect_telegram_client,
+    disconnect_telegram_client,
+    is_session_locked_error,
     load_channel_configs,
     matches_filters,
     reset_telegram_client,
     telegram_credentials_configured,
+    telegram_session_locked_hint,
 )
 
 
@@ -169,7 +175,7 @@ class TestSourceTelegram(unittest.TestCase):
         client.get_entity.return_value = entity
         client.get_messages.return_value = messages
 
-        with patch("sources.telegram.get_telegram_client", return_value=client):
+        with patch("sources.telegram.connect_telegram_client", return_value=client):
             items = source.fetch(self.logger)
 
         self.assertEqual(len(items), 2)
@@ -190,7 +196,7 @@ class TestSourceTelegram(unittest.TestCase):
         client.get_entity.return_value = entity
         client.get_messages.return_value = messages
 
-        with patch("sources.telegram.get_telegram_client", return_value=client):
+        with patch("sources.telegram.connect_telegram_client", return_value=client):
             items = source.fetch(self.logger)
 
         self.assertEqual(len(items), 1)
@@ -199,10 +205,70 @@ class TestSourceTelegram(unittest.TestCase):
     def test_fetch_returns_empty_when_client_unavailable(self):
         source = SourceTelegram(self.logger)
 
-        with patch("sources.telegram.get_telegram_client", return_value=None):
+        with patch("sources.telegram.connect_telegram_client", return_value=None):
             items = source.fetch(self.logger)
 
         self.assertEqual(items, [])
+
+
+    def test_fetch_disconnects_client_after_poll(self):
+        source = SourceTelegram(self.logger)
+        client = Mock()
+        client.get_entity.return_value = SimpleNamespace(title="AMK Mapping")
+        client.get_messages.return_value = []
+
+        with patch("sources.telegram.connect_telegram_client", return_value=client), \
+             patch("sources.telegram.disconnect_telegram_client") as disconnect:
+            source.fetch(self.logger)
+
+        disconnect.assert_called_once_with(client)
+
+
+class TestTelegramSession(unittest.TestCase):
+    def test_authorize_skips_start_when_already_authorized(self):
+        client = Mock()
+        client.is_connected.return_value = True
+        client.is_user_authorized.return_value = True
+
+        authorize_telegram_client(client, phone="+48123456789")
+
+        client.connect.assert_not_called()
+        client.start.assert_not_called()
+
+    def test_authorize_uses_phone_when_provided(self):
+        client = Mock()
+        client.is_connected.return_value = False
+        client.is_user_authorized.side_effect = [False, True]
+
+        authorize_telegram_client(client, phone="+48123456789")
+
+        client.connect.assert_called_once()
+        client.start.assert_called_once_with(phone="+48123456789")
+
+    def test_authorize_prompts_interactively_without_phone(self):
+        client = Mock()
+        client.is_connected.return_value = False
+        client.is_user_authorized.side_effect = [False, True]
+
+        authorize_telegram_client(client)
+
+        client.start.assert_called_once_with()
+
+    def test_disconnect_only_when_connected(self):
+        client = Mock()
+        client.is_connected.return_value = True
+
+        disconnect_telegram_client(client)
+
+        client.disconnect.assert_called_once()
+
+    def test_session_locked_error_detection(self):
+        self.assertTrue(is_session_locked_error(sqlite3.OperationalError("database is locked")))
+        self.assertTrue(is_session_locked_error(RuntimeError("database is locked")))
+        self.assertFalse(is_session_locked_error(RuntimeError("other error")))
+
+    def test_session_locked_hint_mentions_stop(self):
+        self.assertIn("stop war-alert", telegram_session_locked_hint().lower())
 
 
 class TestTelegramCredentials(unittest.TestCase):
