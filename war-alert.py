@@ -18,6 +18,7 @@ from sources.base import Source
 from sources.notam import SourceNotam
 from sources.rss import News, SourceRSS
 from sources.twitterapi import SourceTwitterAPI
+from sources.telegram import SourceTelegram, load_channel_configs, telegram_credentials_configured
 from processors.unique import ProcessorUnique
 from processors.openai import ProcessorOpenAI
 from processors.base import Content, Processor
@@ -114,6 +115,10 @@ def all_sources(logger: logging.Logger) -> list[Source]:
         and os.environ.get("TWITTERAPI_USERNAMES") is not None \
         and os.environ.get("TWITTERAPI_USERNAMES") != "":
         all_sources.append(SourceTwitterAPI(logger))
+
+    # Add the Telegram channel source if API credentials and channels are set
+    if telegram_credentials_configured() and load_channel_configs(logger):
+        all_sources.append(SourceTelegram(logger))
 
     return all_sources
 
