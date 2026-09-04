@@ -1,4 +1,6 @@
-#!/usr/bin/env python3
+"""
+    Interactive Telegram login helper for war-alert.
+"""
 
 import os
 import sys
@@ -19,6 +21,9 @@ from sources.telegram import (
 
 
 def main() -> int:
+    """
+        Authorize a Telethon user session and print export hints.
+    """
     dotenv.load_dotenv()
 
     if not telegram_credentials_configured():
@@ -29,6 +34,7 @@ def main() -> int:
         )
         return 1
 
+    # Prefer in-memory session string over a local session file
     session_string = _session_string()
     if session_string != "":
         session_path = None
@@ -51,10 +57,14 @@ def main() -> int:
             else:
                 print("Authorized with TELEGRAM_SESSION_STRING.")
 
+            # Offer a session string for Docker deployments
             if session_string == "":
                 exported = StringSession.save(client.session)
                 print()
-                print("Optional: copy this into TELEGRAM_SESSION_STRING for Docker:")
+                print(
+                    "Optional: copy this into "
+                    "TELEGRAM_SESSION_STRING for Docker:"
+                )
                 print(exported)
         else:
             print("Telegram authorization failed.", file=sys.stderr)

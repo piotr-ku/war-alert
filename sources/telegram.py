@@ -1,3 +1,7 @@
+"""
+    Telegram channel source for war-alert (Telethon user client).
+"""
+
 import json
 import logging
 import os
@@ -50,9 +54,16 @@ class TelegramPost(Content):
         return f"{self.title}: {self.description}"
 
 
-def _log(logger: logging.Logger, payload: dict, level: int = logging.INFO) -> None:
+def _log(
+    logger: logging.Logger,
+    payload: dict,
+    level: int = logging.INFO,
+) -> None:
     payload.setdefault("source", "Telegram")
-    payload.setdefault("time", time.strftime("%Y-%m-%dT%H:%M:%S", time.localtime()))
+    payload.setdefault(
+        "time",
+        time.strftime("%Y-%m-%dT%H:%M:%S", time.localtime()),
+    )
     logger.log(level, json.dumps(payload, ensure_ascii=False))
 
 
@@ -71,11 +82,17 @@ def _api_hash() -> str:
 
 
 def _channels_file() -> str:
-    return os.environ.get("TELEGRAM_CHANNELS_FILE", DEFAULT_CHANNELS_FILE).strip()
+    return os.environ.get(
+        "TELEGRAM_CHANNELS_FILE",
+        DEFAULT_CHANNELS_FILE,
+    ).strip()
 
 
 def _session_file() -> str:
-    return os.environ.get("TELEGRAM_SESSION_FILE", DEFAULT_SESSION_FILE).strip()
+    return os.environ.get(
+        "TELEGRAM_SESSION_FILE",
+        DEFAULT_SESSION_FILE,
+    ).strip()
 
 
 def _session_string() -> str:
@@ -83,6 +100,9 @@ def _session_string() -> str:
 
 
 def telegram_credentials_configured() -> bool:
+    """
+        Return True when TELEGRAM_API_ID and TELEGRAM_API_HASH are set.
+    """
     return _api_id() is not None and _api_hash() != ""
 
 
@@ -109,6 +129,9 @@ def _compile_filters(
 
 
 def load_channel_configs(logger: logging.Logger) -> list[ChannelConfig]:
+    """
+        Load and validate channel configs from the YAML channels file.
+    """
     path = Path(_channels_file())
     if not path.is_file():
         _log(logger, {
@@ -117,6 +140,7 @@ def load_channel_configs(logger: logging.Logger) -> list[ChannelConfig]:
         }, level=logging.ERROR)
         return []
 
+    # Load YAML from disk
     try:
         with path.open("r", encoding="utf-8") as handle:
             payload = yaml.safe_load(handle)
@@ -170,9 +194,13 @@ def load_channel_configs(logger: logging.Logger) -> list[ChannelConfig]:
             continue
 
         filters = _compile_filters(username, raw_filters, logger)
+        # None = pass all; [] = drop all; list = OR-match regexes
         if raw_filters and not filters:
             _log(logger, {
-                "msg": "Telegram channel has no valid filters; all posts will be dropped",
+                "msg": (
+                    "Telegram channel has no valid filters; "
+                    "all posts will be dropped"
+                ),
                 "username": username,
             }, level=logging.ERROR)
             filter_patterns: list[re.Pattern[str]] | None = []
@@ -190,7 +218,13 @@ def load_channel_configs(logger: logging.Logger) -> list[ChannelConfig]:
     return channels
 
 
-def matches_filters(text: str, filters: list[re.Pattern[str]] | None) -> bool:
+def matches_filters(
+    text: str,
+    filters: list[re.Pattern[str]] | None,
+) -> bool:
+    """
+        Return True when text matches channel filter rules.
+    """
     if filters is None:
         return True
     if not filters:
@@ -208,7 +242,10 @@ def _message_text(message: Any) -> str | None:
 def _message_date(message: Any) -> str:
     message_date = getattr(message, "date", None)
     if message_date is None:
-        return time.strftime("%Y-%m-%dT%H:%M:%S", time.localtime())
+        return time.strftime(
+            "%Y-%m-%dT%H:%M:%S",
+            time.localtime(),
+        )
     return message_date.strftime("%Y-%m-%dT%H:%M:%S")
 
 
@@ -268,6 +305,9 @@ def is_session_locked_error(exc: BaseException) -> bool:
 
 
 def build_telegram_client() -> TelegramClient:
+    """
+        Build a Telethon client from env session string or file.
+    """
     api_id = _api_id()
     if api_id is None:
         raise RuntimeError("TELEGRAM_API_ID is not configured")
@@ -289,6 +329,9 @@ def authorize_telegram_client(
     client: TelegramClient,
     phone: str | None = None,
 ) -> None:
+    """
+        Connect and authorize the Telethon user session if needed.
+    """
     if not client.is_connected():
         client.connect()
 
@@ -302,6 +345,9 @@ def authorize_telegram_client(
 
 
 def disconnect_telegram_client(client: TelegramClient | None) -> None:
+    """
+        Disconnect a Telethon client, ignoring errors.
+    """
     if client is None:
         return
     try:
@@ -312,6 +358,9 @@ def disconnect_telegram_client(client: TelegramClient | None) -> None:
 
 
 def connect_telegram_client(logger: logging.Logger) -> TelegramClient | None:
+    """
+        Connect an authorized Telethon client or log the failure.
+    """
     if not telegram_credentials_configured():
         return None
 
@@ -320,12 +369,16 @@ def connect_telegram_client(logger: logging.Logger) -> TelegramClient | None:
         client.connect()
         if not client.is_user_authorized():
             _log(logger, {
-                "msg": "Telegram user session is not authorized; run telegram_login.py",
+                "msg": (
+                    "Telegram user session is not authorized; "
+                    "run telegram_login.py"
+                ),
             }, level=logging.ERROR)
             disconnect_telegram_client(client)
             return None
         return client
     except Exception as exc:
+        # SQLite lock means war-alert still holds the session file
         if is_session_locked_error(exc):
             _log(logger, {
                 "msg": "Telegram session file is locked",
@@ -350,18 +403,28 @@ class SourceTelegram(Source):
         A class to represent Telegram channel sources (Telethon user client).
     """
     def __init__(self, logger: logging.Logger):
+        """
+            Initialize the Telegram source from channel configs.
+        """
         self.logger = logger
         self.channels = load_channel_configs(logger)
 
     def processors(self) -> list[Processor]:
+        """
+            Return a list of processors.
+        """
         return [ProcessorUnique, ProcessorOpenAI]
 
     def fetch(self, logger) -> list[TelegramPost]:
+        """
+            Fetch recent posts from all configured Telegram channels.
+        """
         global _logged_source_config
 
         if not self.channels:
             return []
 
+        # Log channel config once per process
         if not _logged_source_config:
             _log(self.logger, {
                 "msg": "Telegram source configured",
@@ -392,9 +455,8 @@ class SourceTelegram(Source):
             total_matched = 0
 
             for channel in self.channels:
-                fetched, filtered, matched, channel_items = self._fetch_channel(
-                    client,
-                    channel,
+                fetched, filtered, matched, channel_items = (
+                    self._fetch_channel(client, channel)
                 )
                 total_fetched += fetched
                 total_filtered += filtered
@@ -428,6 +490,7 @@ class SourceTelegram(Source):
             entity = client.get_entity(username)
             messages = client.get_messages(entity, limit=channel.limit)
         except SecurityError as exc:
+            # Session drift needs re-login, not a channel error
             _log(self.logger, {
                 "msg": "Telegram session security error",
                 "username": username,
