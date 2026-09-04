@@ -2,6 +2,7 @@
     ntfy.sh notifier for war-alert.
 """
 
+import base64
 import json
 import os
 import logging
@@ -34,6 +35,23 @@ def _priority() -> str:
     return raw.strip()
 
 
+def _http_header(value: str) -> str:
+    """
+        Return a latin-1-safe HTTP header value.
+
+        requests encodes headers as latin-1. Non-latin-1 text is sent as
+        RFC 2047 encoded-words, which ntfy supports.
+    """
+    try:
+        value.encode("latin-1")
+        return value
+    except UnicodeEncodeError:
+        encoded = base64.b64encode(
+            value.encode("utf-8"),
+        ).decode("ascii")
+        return f"=?UTF-8?B?{encoded}?="
+
+
 class NotifierNtfy(Notifier):
     """
         Send alert notifications via the ntfy HTTP API.
@@ -49,15 +67,15 @@ class NotifierNtfy(Notifier):
         url = f"{_server_url()}/{topic}"
         message = f"{content.description}\n\n{content.link}"
         headers = {
-            "Title": content.title,
+            "Title": _http_header(content.title),
             "Priority": _priority(),
         }
         if content.link:
-            headers["Click"] = content.link
+            headers["Click"] = _http_header(content.link)
 
         tags = os.environ.get("NTFY_TAGS")
         if tags is not None and tags.strip() != "":
-            headers["Tags"] = tags.strip()
+            headers["Tags"] = _http_header(tags.strip())
 
         token = os.environ.get("NTFY_TOKEN")
         if token is not None and token.strip() != "":
