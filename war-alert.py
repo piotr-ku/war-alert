@@ -27,8 +27,8 @@ from sources.telegram import (
     load_channel_configs,
     telegram_credentials_configured,
 )
+from processors.classify import news_processors, parse_processor_names
 from processors.unique import ProcessorUnique
-from processors.openai import ProcessorOpenAI
 from processors.base import Content, Processor
 from webhooks.server import start_http_server
 
@@ -88,7 +88,7 @@ def usr1_handler(sig, frame):
             time.strftime("%Y-%m-%dT%H:%M:%S", time.localtime()),
         time.strftime("%Y-%m-%dT%H:%M:%S", time.localtime()),
         "https://github.com/piotr-ku/war-alert")
-    process_and_notify(content, [ProcessorUnique, ProcessorOpenAI], logger)
+    process_and_notify(content, news_processors(), logger)
 
 # Handle the SIGTERM, SIGINT and SIGUSR1 signals
 signal.signal(signal.SIGTERM, signal_handler)
@@ -185,6 +185,18 @@ if __name__ == "__main__":
     # Load the .env file
     dotenv.load_dotenv()
     logger.setLevel(_log_level())
+
+    try:
+        parse_processor_names(os.environ.get("CLASSIFICATION_PROCESSOR"))
+    except ValueError as e:
+        logger.error(json.dumps({
+            "time": time.strftime(
+                "%Y-%m-%dT%H:%M:%S",
+                time.localtime(),
+            ),
+            "msg": str(e),
+        }))
+        sys.exit(1)
 
     http_port = os.environ.get("WEBHOOK_PORT") or os.environ.get("HEALTH_PORT")
     if http_port is not None and http_port != "":

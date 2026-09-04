@@ -18,8 +18,7 @@ from telethon.sync import TelegramClient
 from telethon.sessions import StringSession
 
 from processors.base import Content, Processor
-from processors.openai import ProcessorOpenAI
-from processors.unique import ProcessorUnique
+from processors.classify import news_processors
 from sources.base import Source
 
 DEFAULT_CHANNELS_FILE = "./telegram.yaml"
@@ -413,7 +412,7 @@ class SourceTelegram(Source):
         """
             Return a list of processors.
         """
-        return [ProcessorUnique, ProcessorOpenAI]
+        return news_processors()
 
     def fetch(self, logger) -> list[TelegramPost]:
         """

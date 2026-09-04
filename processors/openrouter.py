@@ -1,5 +1,5 @@
 """
-    OpenAI classification API client for war-alert.
+    OpenRouter classification API client for war-alert.
 """
 
 import json
@@ -9,15 +9,39 @@ import time
 
 import openai
 
+DEFAULT_BASE_URL = "https://openrouter.ai/api/v1"
+
 
 def query(prompt: str, logger: logging.Logger) -> str:
     """
-        Return a response from OpenAI API in a string format.
+        Return a response from OpenRouter API in a string format.
     """
+    api_key = os.environ.get("OPENROUTER_API_KEY", "")
+    if api_key == "":
+        logger.error(json.dumps({
+            "time": time.strftime(
+                "%Y-%m-%dT%H:%M:%S",
+                time.localtime(),
+            ),
+            "msg": "OPENROUTER_API_KEY is not set",
+        }, ensure_ascii=False))
+        return ""
+
+    base_url = os.environ.get(
+        "OPENROUTER_BASE_URL",
+        DEFAULT_BASE_URL,
+    ).rstrip("/")
+
     try:
-        client = openai.OpenAI()
+        client = openai.OpenAI(
+            base_url=base_url,
+            api_key=api_key,
+        )
         completion = client.chat.completions.create(
-            model=os.environ.get("OPENAI_MODEL", "gpt-4o-mini"),
+            model=os.environ.get(
+                "OPENROUTER_MODEL",
+                "openai/gpt-4o-mini",
+            ),
             messages=[
                 {
                     "role": "user",
@@ -32,7 +56,7 @@ def query(prompt: str, logger: logging.Logger) -> str:
                 "%Y-%m-%dT%H:%M:%S",
                 time.localtime(),
             ),
-            "msg": "Error sending OpenAI request",
+            "msg": "Error sending OpenRouter request",
             "exception": str(e),
         }, ensure_ascii=False))
         return ""
@@ -45,7 +69,7 @@ def query(prompt: str, logger: logging.Logger) -> str:
                 "%Y-%m-%dT%H:%M:%S",
                 time.localtime(),
             ),
-            "msg": "Error parsing OpenAI response",
+            "msg": "Error parsing OpenRouter response",
             "exception": str(e),
         }, ensure_ascii=False))
         return ""

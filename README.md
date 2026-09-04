@@ -1,8 +1,8 @@
 # War Alert Script
 
 This script monitors RSS feeds for specific news alerts, processes them
-with OpenAI's API, and sends notifications via Pushover, ntfy, or
-Telegram. It
+with a configurable LLM classifier (OpenAI or OpenRouter), and sends
+notifications via Pushover, ntfy, or Telegram. It
 ensures that duplicate news items are ignored and provides detailed logging
 for each step of the process.
 
@@ -14,7 +14,7 @@ for each step of the process.
   per-channel regex filters in `telegram.yaml`.
 - Monitors FAA NMS NOTAMs for Polish airspace restrictions.
 - Detects duplicate news items using MD5 hashes.
-- Processes news items using OpenAI's API with custom prompts.
+- Processes news items using OpenAI or OpenRouter with custom prompts.
 - Sends notifications via Pushover, ntfy, or Telegram for relevant alerts.
 - Handles graceful shutdown via signal handling.
 - Configurable via environment variables.
@@ -29,7 +29,8 @@ for each step of the process.
   - `telethon`
   - `PyYAML`
 - External APIs:
-  - OpenAI API
+  - OpenAI API (optional)
+  - OpenRouter API (optional)
   - Pushover API
 
 ## Installation
@@ -53,6 +54,11 @@ for each step of the process.
    # NTFY_PRIORITY=high
    # NTFY_TAGS=
    OPENAI_API_KEY=<your-openai-api-key>
+   OPENAI_MODEL=gpt-4o-mini
+   CLASSIFICATION_PROCESSOR=openai
+   OPENROUTER_API_KEY=<your-openrouter-api-key>
+   OPENROUTER_MODEL=openai/gpt-4o-mini
+   # OPENROUTER_BASE_URL=https://openrouter.ai/api/v1
    PROMPT_FILE=<path-to-prompt-file>
    SLEEP_DELAY=600
    SMTP_SERVER=<your-smtp-server>
@@ -78,6 +84,13 @@ for each step of the process.
    LOG_LEVEL=INFO
    ```
    Adjust `SLEEP_DELAY` (in seconds) and `TMPDIR` as needed.
+   Set `CLASSIFICATION_PROCESSOR` to choose the LLM provider for RSS,
+   Twitter, and Telegram items: `openai` (default), `openrouter`, or a
+   comma-separated fallback chain such as `openrouter,openai`. The next
+   provider is used only when the previous one fails (API error, empty
+   response, or invalid JSON); a valid `result: "no"` does not trigger
+   fallback. Set `OPENAI_API_KEY` when using OpenAI; set
+   `OPENROUTER_API_KEY` when using OpenRouter.
    Set `LOG_LEVEL` to `DEBUG` to include per-item NOTAM dumps and
    noise-filter details (default `INFO`).
    Set `HEALTH_PORT` to expose a health check endpoint (`GET /health`).
@@ -86,16 +99,16 @@ for each step of the process.
    monitoring via [twitterapi.io](https://twitterapi.io/dashboard). Each poll
    fetches the first page (up to 20 tweets) per configured handle using
    `GET /twitter/user/last_tweets`; tweets are deduplicated and filtered
-   through OpenAI like RSS. Optionally override `TWITTERAPI_BASE_URL` (see
-   `.env.example`).
+   through the configured classifier like RSS. Optionally override
+   `TWITTERAPI_BASE_URL` (see `.env.example`).
    Set `TELEGRAM_API_ID` and `TELEGRAM_API_HASH` (from
    [my.telegram.org](https://my.telegram.org)) plus `telegram.yaml` to
    monitor Telegram channels via a **user account** (Telethon). The
    notification bot (`TELEGRAM_BOT_TOKEN`) cannot read third-party channels.
    Run `python3 telegram_login.py` once to create `telegram.session`. Each
-   channel has per-channel regex filters in YAML; only matching posts are sent
-   to OpenAI. See `telegram.yaml` for the example `@AMK_Mapping`
-   configuration.
+   channel has per-channel regex filters in YAML; only matching posts are
+   classified by the configured LLM. See `telegram.yaml` for the example
+   `@AMK_Mapping` configuration.
    Set `FAA_NMS_CLIENT_ID` and `FAA_NMS_CLIENT_SECRET` to enable NOTAM
    monitoring via the FAA NMS API (request access at notams@faa.gov). Use
    `NOTAM_LOCATIONS` (space-separated ICAO codes, default `EPWW EPWA`) and
@@ -111,7 +124,7 @@ for each step of the process.
    staging, override `FAA_NMS_BASE_URL` and `FAA_NMS_AUTH_URL` (see
    `.env.example`).
 
-3. Modify the `prompt.txt` file with your OpenAI query template.
+3. Modify the `prompt.txt` file with your classification query template.
 
 ## Docker
 
@@ -159,8 +172,8 @@ per-item NOTAM dumps and noise-filter details.
 
 ### Notifications
 Relevant alerts are sent via all configured notifiers (Pushover, ntfy,
-Telegram, email). Pushover uses the item title and OpenAI justification;
-ntfy sends the same body with `Title`, `Priority` (default `high`), and
+Telegram, email). Pushover uses the item title and classifier
+justification; ntfy sends the same body with `Title`, `Priority` (default
 `Click` headers. Set `NTFY_TOPIC` to enable ntfy (required). Use a
 hard-to-guess topic name or `NTFY_TOKEN` for reserved topics — public ntfy
 topics have no sign-up and the topic name acts as a password. Optionally
@@ -188,7 +201,7 @@ The FAA staging API enforces ~1 request/s per client; use
 run many NOTAMs may match at once; Telegram notifications are throttled via
 `TELEGRAM_MIN_INTERVAL` (default `1.0` s) with automatic retry on HTTP 429.
 Items are marked as seen after they are processed (including when a
-downstream processor such as OpenAI rejects them) or after at least one
+downstream processor such as the classifier rejects them) or after at least one
 notifier succeeds; only failed deliveries are retried on the next poll
 cycle.
 
@@ -207,14 +220,14 @@ skipped as duplicate` at `debug` when a standing match is already seen.
 When `TWITTERAPI_KEY` and `TWITTERAPI_USERNAMES` are configured, the script
 polls the first page of recent tweets (up to 20 per handle) from each
 configured account. Tweets are processed through `ProcessorUnique` and
-`ProcessorOpenAI` like RSS items. Duplicate tweets are skipped on subsequent
+`ProcessorClassification` like RSS items. Duplicate tweets are skipped on subsequent
 poll cycles.
 
 ### Telegram channel monitoring
 When `TELEGRAM_API_ID`, `TELEGRAM_API_HASH`, and `telegram.yaml` are
 configured, the script polls recent posts from each listed channel using
 Telethon. Posts are filtered by per-channel regex patterns in YAML before
-deduplication and OpenAI processing. The client connects at the start of
+deduplication and LLM classification. The client connects at the start of
 each poll and disconnects afterwards, so `telegram.session` is not held open
 between cycles.
 
@@ -295,7 +308,7 @@ curl -X POST http://localhost:8080/webhook/news \
 
 ## Notes
 
-- Ensure the OpenAI and notification credentials are valid.
+- Ensure the classifier and notification credentials are valid.
 - Adjust RSS feed URLs and prompt content to match your requirements.
 - Temporary files for tracking processed items are stored in the directory
   specified by the `TMPDIR` environment variable.

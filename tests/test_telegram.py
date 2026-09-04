@@ -9,8 +9,7 @@ import unittest
 from types import SimpleNamespace
 from unittest.mock import Mock, patch
 
-from processors.openai import ProcessorOpenAI
-from processors.unique import ProcessorUnique
+from processors.classify import news_processors
 from sources.telegram import (
     ChannelConfig,
     SourceTelegram,
@@ -185,7 +184,7 @@ class TestSourceTelegram(unittest.TestCase):
         source = SourceTelegram(self.logger)
         self.assertEqual(
             source.processors(),
-            [ProcessorUnique, ProcessorOpenAI],
+            news_processors(),
         )
 
     def test_fetch_applies_regex_before_returning_posts(self):

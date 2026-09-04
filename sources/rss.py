@@ -10,8 +10,7 @@ import time
 import xml.etree.ElementTree
 from sources.base import Source
 from processors.base import Content, Processor
-from processors.unique import ProcessorUnique
-from processors.openai import ProcessorOpenAI
+from processors.classify import news_processors
 
 class News(Content):
     """
@@ -78,7 +77,7 @@ class SourceRSS(Source):
         """
             Return a list of processors.
         """
-        return [ProcessorUnique, ProcessorOpenAI]
+        return news_processors()
 
     def fetch(self, logger) -> list[News]:
         """

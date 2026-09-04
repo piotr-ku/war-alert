@@ -11,7 +11,7 @@ from threading import Thread
 from typing import Callable
 
 from processors.base import Content, Processor
-from processors.openai import ProcessorOpenAI
+from processors.classify import news_processors
 from processors.unique import ProcessorUnique
 from sources.alertsua import Alert
 from sources.rss import News
@@ -22,7 +22,7 @@ ProcessAndNotify = Callable[
 ]
 
 ALERT_PROCESSORS = [ProcessorUnique]
-NEWS_PROCESSORS = [ProcessorUnique, ProcessorOpenAI]
+NEWS_PROCESSORS = news_processors()
 
 
 def start_http_server(

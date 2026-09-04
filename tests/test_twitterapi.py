@@ -6,8 +6,7 @@ import sys
 import unittest
 from unittest.mock import Mock, patch
 
-from processors.openai import ProcessorOpenAI
-from processors.unique import ProcessorUnique
+from processors.classify import news_processors
 from sources.twitterapi import SourceTwitterAPI, Tweet
 
 
@@ -187,7 +186,7 @@ class TestSourceTwitterAPI(unittest.TestCase):
         source = SourceTwitterAPI(self.logger)
         self.assertEqual(
             source.processors(),
-            [ProcessorUnique, ProcessorOpenAI],
+            news_processors(),
         )
 
 

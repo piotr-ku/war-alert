@@ -11,8 +11,7 @@ from typing import Any
 import requests
 
 from processors.base import Content, Processor
-from processors.openai import ProcessorOpenAI
-from processors.unique import ProcessorUnique
+from processors.classify import news_processors
 from sources.base import Source
 
 DEFAULT_BASE_URL = "https://api.twitterapi.io"
@@ -163,7 +162,7 @@ class SourceTwitterAPI(Source):
         """
             Return a list of processors.
         """
-        return [ProcessorUnique, ProcessorOpenAI]
+        return news_processors()
 
     def fetch(self, logger) -> list[Tweet]:
         """
