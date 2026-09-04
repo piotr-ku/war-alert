@@ -80,7 +80,10 @@ class TestSourceTwitterAPI(unittest.TestCase):
         response.status_code = 200
         response.json.return_value = _api_response(tweets)
 
-        with patch("sources.twitterapi.requests.get", return_value=response) as mock_get:
+        with patch(
+            "sources.twitterapi.requests.get",
+            return_value=response,
+        ) as mock_get:
             result = SourceTwitterAPI(self.logger).fetch(self.logger)
 
         self.assertEqual(len(result), 20)
@@ -111,7 +114,9 @@ class TestSourceTwitterAPI(unittest.TestCase):
     def test_error_for_one_username_does_not_drop_other(self):
         good_response = Mock()
         good_response.status_code = 200
-        good_response.json.return_value = _api_response([_tweet_payload(1, "GoodUser")])
+        good_response.json.return_value = _api_response(
+            [_tweet_payload(1, "GoodUser")],
+        )
 
         bad_response = Mock()
         bad_response.status_code = 400
@@ -132,7 +137,10 @@ class TestSourceTwitterAPI(unittest.TestCase):
         self.assertEqual(result[0].title, "Defence of Ukraine (@GoodUser)")
 
     def test_request_exception_returns_empty_for_username(self):
-        with patch("sources.twitterapi.requests.get", side_effect=TimeoutError("timeout")):
+        with patch(
+            "sources.twitterapi.requests.get",
+            side_effect=TimeoutError("timeout"),
+        ):
             result = SourceTwitterAPI(self.logger).fetch(self.logger)
 
         self.assertEqual(result, [])
@@ -177,7 +185,10 @@ class TestSourceTwitterAPI(unittest.TestCase):
 
     def test_processors_match_rss(self):
         source = SourceTwitterAPI(self.logger)
-        self.assertEqual(source.processors(), [ProcessorUnique, ProcessorOpenAI])
+        self.assertEqual(
+            source.processors(),
+            [ProcessorUnique, ProcessorOpenAI],
+        )
 
 
 class TestAllSourcesTwitterAPI(unittest.TestCase):

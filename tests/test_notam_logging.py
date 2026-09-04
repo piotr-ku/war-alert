@@ -25,7 +25,11 @@ class RecordingHandler(logging.Handler):
         return result
 
     def by_msg(self, msg, level=None):
-        return [payload for payload in self.payloads(level) if payload.get("msg") == msg]
+        return [
+            payload
+            for payload in self.payloads(level)
+            if payload.get("msg") == msg
+        ]
 
 
 def _fields(number, qcode, text, location="EPWW"):
@@ -75,8 +79,9 @@ class TestNotamFetchLogging(unittest.TestCase):
             ),
             _fields("D3/26", "QAFXX", "NAV AID"),
         ]
-        with patch.object(notam_module, "_get_access_token", return_value="token"), \
-             patch.object(
+        with patch.object(
+            notam_module, "_get_access_token", return_value="token",
+        ), patch.object(
                  SourceNotam,
                  "_fetch_location_notams",
                  return_value=(fields, 12),
@@ -86,7 +91,10 @@ class TestNotamFetchLogging(unittest.TestCase):
         self.assertEqual(len(result), 1)
         self.assertEqual(result[0].title, "NOTAM D2/26 (EPWW, QRTCA)")
 
-        info_msgs = [payload["msg"] for payload in self.handler.payloads(logging.INFO)]
+        info_msgs = [
+            payload["msg"]
+            for payload in self.handler.payloads(logging.INFO)
+        ]
         self.assertEqual(
             info_msgs,
             [
@@ -120,14 +128,21 @@ class TestNotamFetchLogging(unittest.TestCase):
         self.assertEqual(complete["locations"]["EPWW"]["count"], 3)
         self.assertEqual(complete["locations"]["EPWW"]["duration_ms"], 12)
 
-        debug_noise = self.handler.by_msg("NOTAM filtered as noise", logging.DEBUG)
+        debug_noise = self.handler.by_msg(
+            "NOTAM filtered as noise",
+            logging.DEBUG,
+        )
         self.assertEqual(len(debug_noise), 1)
         self.assertEqual(debug_noise[0]["number"], "D1/26")
-        self.assertEqual(debug_noise[0]["text"], "TEMPORARY RESERVED AREA - PJE.")
+        self.assertEqual(
+            debug_noise[0]["text"],
+            "TEMPORARY RESERVED AREA - PJE.",
+        )
 
     def test_config_logged_once(self):
-        with patch.object(notam_module, "_get_access_token", return_value="token"), \
-             patch.object(
+        with patch.object(
+            notam_module, "_get_access_token", return_value="token",
+        ), patch.object(
                  SourceNotam,
                  "_fetch_location_notams",
                  return_value=([], 0),
@@ -154,8 +169,9 @@ class TestNotamFetchLogging(unittest.TestCase):
                 "WARSAW TMA CLOSED. AIRSPACE USE PLAN (AUP).",
             ),
         ]
-        with patch.object(notam_module, "_get_access_token", return_value="token"), \
-             patch.object(
+        with patch.object(
+            notam_module, "_get_access_token", return_value="token",
+        ), patch.object(
                  SourceNotam,
                  "_fetch_location_notams",
                  return_value=(fields, 5),
@@ -196,9 +212,11 @@ class TestNotamFetchLogging(unittest.TestCase):
         response.status_code = 200
         response.json.return_value = payload
         with patch("sources.notam.requests.get", return_value=response):
-            fields, duration_ms = SourceNotam(self.logger)._fetch_location_notams(
-                "EPWW",
-                "token",
+            fields, duration_ms = (
+                SourceNotam(self.logger)._fetch_location_notams(
+                    "EPWW",
+                    "token",
+                )
             )
 
         self.assertEqual(len(fields), 1)

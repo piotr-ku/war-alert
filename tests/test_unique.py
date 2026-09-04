@@ -30,12 +30,20 @@ class StubContent(Content):
 
 
 class DropProcessor(Processor):
-    def process(self, content: Content, logger: logging.Logger) -> Content | None:
+    def process(
+        self,
+        content: Content,
+        logger: logging.Logger,
+    ) -> Content | None:
         return None
 
 
 class PassThroughProcessor(Processor):
-    def process(self, content: Content, logger: logging.Logger) -> Content | None:
+    def process(
+        self,
+        content: Content,
+        logger: logging.Logger,
+    ) -> Content | None:
         return content
 
 
@@ -49,7 +57,12 @@ class TestProcessorUnique(unittest.TestCase):
         os.environ.pop("TMPDIR", None)
 
     def test_mark_seen_uses_original_hash_after_description_change(self):
-        content = News("Title", "original description", "2026-01-01", "http://example.com")
+        content = News(
+            "Title",
+            "original description",
+            "2026-01-01",
+            "http://example.com",
+        )
         original_hash = calculate_md5_hash(str(content))
 
         processor = ProcessorUnique()
@@ -58,10 +71,20 @@ class TestProcessorUnique(unittest.TestCase):
         content.description = "OpenAI justification"
         processor.mark_seen(content)
 
-        fresh = News("Title", "original description", "2026-01-01", "http://example.com")
+        fresh = News(
+            "Title",
+            "original description",
+            "2026-01-01",
+            "http://example.com",
+        )
         self.assertIsNone(processor.process(fresh, self.logger))
 
-        mutated = News("Title", "OpenAI justification", "2026-01-01", "http://example.com")
+        mutated = News(
+            "Title",
+            "OpenAI justification",
+            "2026-01-01",
+            "http://example.com",
+        )
         self.assertIsNotNone(processor.process(mutated, self.logger))
         self.assertNotEqual(
             calculate_md5_hash(str(mutated)),
@@ -72,7 +95,9 @@ class TestProcessorUnique(unittest.TestCase):
         content = StubContent("fallback")
         ProcessorUnique().mark_seen(content)
 
-        self.assertIsNone(ProcessorUnique().process(StubContent("fallback"), self.logger))
+        self.assertIsNone(
+            ProcessorUnique().process(StubContent("fallback"), self.logger),
+        )
 
     def test_duplicate_logs_debug_with_title(self):
         records = []
@@ -89,7 +114,9 @@ class TestProcessorUnique(unittest.TestCase):
         self.logger.setLevel(logging.DEBUG)
         self.addCleanup(self.logger.removeHandler, handler)
 
-        content = News("Title", "description", "2026-01-01", "http://example.com")
+        content = News(
+            "Title", "description", "2026-01-01", "http://example.com",
+        )
         ProcessorUnique().mark_seen(content)
         self.assertIsNone(ProcessorUnique().process(content, self.logger))
 
@@ -99,7 +126,10 @@ class TestProcessorUnique(unittest.TestCase):
             if record.levelno == logging.DEBUG
         ]
         self.assertTrue(debug_messages)
-        self.assertEqual(debug_messages[0]["msg"], "Content skipped as duplicate")
+        self.assertEqual(
+            debug_messages[0]["msg"],
+            "Content skipped as duplicate",
+        )
         self.assertEqual(debug_messages[0]["title"], "Title")
 
 
@@ -119,7 +149,9 @@ class TestProcessAndNotify(unittest.TestCase):
     def test_processor_drop_marks_seen(self):
         process_and_notify = self.war_alert.process_and_notify
 
-        content = News("Title", "description", "2026-01-01", "http://example.com")
+        content = News(
+            "Title", "description", "2026-01-01", "http://example.com",
+        )
         notified = process_and_notify(
             content,
             [ProcessorUnique, DropProcessor],
@@ -135,8 +167,14 @@ class TestProcessAndNotify(unittest.TestCase):
     def test_failed_notification_does_not_mark_seen(self):
         process_and_notify = self.war_alert.process_and_notify
 
-        with patch.object(self.war_alert, "all_notifiers", return_value=[]):
-            content = News("Title", "description", "2026-01-01", "http://example.com")
+        with patch.object(
+            self.war_alert,
+            "all_notifiers",
+            return_value=[],
+        ):
+            content = News(
+            "Title", "description", "2026-01-01", "http://example.com",
+        )
             notified = process_and_notify(
                 content,
                 [ProcessorUnique, PassThroughProcessor],
@@ -156,8 +194,14 @@ class TestProcessAndNotify(unittest.TestCase):
             def notify(self, content, logger):
                 return True
 
-        with patch.object(self.war_alert, "all_notifiers", return_value=[SuccessfulNotifier()]):
-            content = News("Title", "description", "2026-01-01", "http://example.com")
+        with patch.object(
+            self.war_alert,
+            "all_notifiers",
+            return_value=[SuccessfulNotifier()],
+        ):
+            content = News(
+            "Title", "description", "2026-01-01", "http://example.com",
+        )
             notified = process_and_notify(
                 content,
                 [ProcessorUnique, PassThroughProcessor],

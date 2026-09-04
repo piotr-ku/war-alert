@@ -60,7 +60,9 @@ class TestTelegramFilters(unittest.TestCase):
                 os.environ[key] = value
 
     def test_load_channel_configs_compiles_filters(self):
-        with tempfile.NamedTemporaryFile("w", suffix=".yaml", delete=False) as handle:
+        with tempfile.NamedTemporaryFile(
+            "w", suffix=".yaml", delete=False,
+        ) as handle:
             handle.write(textwrap.dedent("""
                 channels:
                   - username: AMK_Mapping
@@ -84,20 +86,38 @@ class TestTelegramFilters(unittest.TestCase):
     def test_matches_filters_or_semantics(self):
         filters = [__import__("re").compile(r"(?i)\bpoland\b")]
         self.assertTrue(matches_filters("Troops near Poland border", filters))
-        self.assertFalse(matches_filters("Russian advances in Donetsk Oblast", filters))
+        self.assertFalse(
+            matches_filters(
+                "Russian advances in Donetsk Oblast",
+                filters,
+            ),
+        )
 
     def test_project_yaml_matches_poland_krakow_jasionka(self):
         channels = load_channel_configs(self.logger)
         self.assertGreaterEqual(len(channels), 1)
         filters = channels[0].filters
 
-        self.assertTrue(matches_filters("Poland activated air defences.", filters))
-        self.assertTrue(matches_filters("Cargo landed at Jasionka airport.", filters))
-        self.assertTrue(matches_filters("Strike reported near Kraków.", filters))
-        self.assertFalse(matches_filters("Russian Geran-4 drones struck Odesa Oblast.", filters))
+        self.assertTrue(
+            matches_filters("Poland activated air defences.", filters),
+        )
+        self.assertTrue(
+            matches_filters("Cargo landed at Jasionka airport.", filters),
+        )
+        self.assertTrue(
+            matches_filters("Strike reported near Kraków.", filters),
+        )
+        self.assertFalse(
+            matches_filters(
+                "Russian Geran-4 drones struck Odesa Oblast.",
+                filters,
+            ),
+        )
 
     def test_invalid_regex_is_skipped(self):
-        with tempfile.NamedTemporaryFile("w", suffix=".yaml", delete=False) as handle:
+        with tempfile.NamedTemporaryFile(
+            "w", suffix=".yaml", delete=False,
+        ) as handle:
             handle.write(textwrap.dedent("""
                 channels:
                   - username: test_channel
@@ -137,7 +157,9 @@ class TestSourceTelegram(unittest.TestCase):
         os.environ["TELEGRAM_API_HASH"] = "hash"
         os.environ["TELEGRAM_SESSION_STRING"] = "1AgA"
 
-        with tempfile.NamedTemporaryFile("w", suffix=".yaml", delete=False) as handle:
+        with tempfile.NamedTemporaryFile(
+            "w", suffix=".yaml", delete=False,
+        ) as handle:
             handle.write(textwrap.dedent("""
                 channels:
                   - username: AMK_Mapping
@@ -161,7 +183,10 @@ class TestSourceTelegram(unittest.TestCase):
 
     def test_processors(self):
         source = SourceTelegram(self.logger)
-        self.assertEqual(source.processors(), [ProcessorUnique, ProcessorOpenAI])
+        self.assertEqual(
+            source.processors(),
+            [ProcessorUnique, ProcessorOpenAI],
+        )
 
     def test_fetch_applies_regex_before_returning_posts(self):
         source = SourceTelegram(self.logger)
@@ -175,7 +200,10 @@ class TestSourceTelegram(unittest.TestCase):
         client.get_entity.return_value = entity
         client.get_messages.return_value = messages
 
-        with patch("sources.telegram.connect_telegram_client", return_value=client):
+        with patch(
+            "sources.telegram.connect_telegram_client",
+            return_value=client,
+        ):
             items = source.fetch(self.logger)
 
         self.assertEqual(len(items), 2)
@@ -196,7 +224,10 @@ class TestSourceTelegram(unittest.TestCase):
         client.get_entity.return_value = entity
         client.get_messages.return_value = messages
 
-        with patch("sources.telegram.connect_telegram_client", return_value=client):
+        with patch(
+            "sources.telegram.connect_telegram_client",
+            return_value=client,
+        ):
             items = source.fetch(self.logger)
 
         self.assertEqual(len(items), 1)
@@ -205,7 +236,10 @@ class TestSourceTelegram(unittest.TestCase):
     def test_fetch_returns_empty_when_client_unavailable(self):
         source = SourceTelegram(self.logger)
 
-        with patch("sources.telegram.connect_telegram_client", return_value=None):
+        with patch(
+            "sources.telegram.connect_telegram_client",
+            return_value=None,
+        ):
             items = source.fetch(self.logger)
 
         self.assertEqual(items, [])
@@ -217,8 +251,12 @@ class TestSourceTelegram(unittest.TestCase):
         client.get_entity.return_value = SimpleNamespace(title="AMK Mapping")
         client.get_messages.return_value = []
 
-        with patch("sources.telegram.connect_telegram_client", return_value=client), \
-             patch("sources.telegram.disconnect_telegram_client") as disconnect:
+        with patch(
+            "sources.telegram.connect_telegram_client",
+            return_value=client,
+        ), patch(
+            "sources.telegram.disconnect_telegram_client",
+        ) as disconnect:
             source.fetch(self.logger)
 
         disconnect.assert_called_once_with(client)
@@ -263,8 +301,14 @@ class TestTelegramSession(unittest.TestCase):
         client.disconnect.assert_called_once()
 
     def test_session_locked_error_detection(self):
-        self.assertTrue(is_session_locked_error(sqlite3.OperationalError("database is locked")))
-        self.assertTrue(is_session_locked_error(RuntimeError("database is locked")))
+        self.assertTrue(
+            is_session_locked_error(
+                sqlite3.OperationalError("database is locked"),
+            ),
+        )
+        self.assertTrue(
+            is_session_locked_error(RuntimeError("database is locked")),
+        )
         self.assertFalse(is_session_locked_error(RuntimeError("other error")))
 
     def test_session_locked_hint_mentions_stop(self):

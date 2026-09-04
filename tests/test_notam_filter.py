@@ -14,12 +14,14 @@ NOISE_CORPUS = [
         "D6270/26",
         "QRTCA",
         "TEMPORARY RESERVED AREA EPTR1022 - PJE. "
-        "AIRSPACE UNCLASSIFIED. TIME OF ACT ACCORDING TO AIRSPACE USE PLAN (AUP).",
+        "AIRSPACE UNCLASSIFIED. TIME OF ACT ACCORDING TO "
+        "AIRSPACE USE PLAN (AUP).",
     ),
     (
         "D6299/26",
         "QRRCA",
-        "RESTRICTED AREA EPR981 - WIELUN. WITHIN AREA ALL FLIGHTS ARE PROHIBITED EXC: "
+        "RESTRICTED AREA EPR981 - WIELUN. WITHIN AREA ALL "
+        "FLIGHTS ARE PROHIBITED EXC: "
         "1. STATE AVIATION 2. ACFT BELONGING TO AREA MANAGER",
     ),
     (
@@ -30,17 +32,20 @@ NOISE_CORPUS = [
     (
         "D5725/26",
         "QRTCA",
-        "TEMPORARY RESERVED AREA EPTR427 ZEGRZE. TIME OF ACTIVITY ACCORDING TO AIRSPACE USE PLAN.",
+        "TEMPORARY RESERVED AREA EPTR427 ZEGRZE. TIME OF "
+        "ACTIVITY ACCORDING TO AIRSPACE USE PLAN.",
     ),
     (
         "D6118/26",
         "QRTCA",
-        "TEMPORARY RESERVED AREA EPTR1017. ACT ACCORDING TO AIRSPACE USE PLAN (AUP)",
+        "TEMPORARY RESERVED AREA EPTR1017. ACT ACCORDING TO "
+        "AIRSPACE USE PLAN (AUP)",
     ),
     (
         "D6147/26",
         "QRTCA",
-        "TEMPORARY RESERVED AREA EPTR364 - MIL. ACT ACCORDING TO AIRSPACE USE PLAN (AUP)",
+        "TEMPORARY RESERVED AREA EPTR364 - MIL. ACT ACCORDING "
+        "TO AIRSPACE USE PLAN (AUP)",
     ),
     (
         "D6217/26",
@@ -57,8 +62,10 @@ NOISE_CORPUS = [
     (
         "D6323/26",
         "QRRCA",
-        "RESTRICTED AREA EPR986 GDANSK. WITHIN AREA ALL FLIGHTS ARE PROHIBITED EXC: "
-        "1. STATE AVIATION 2. PERFORMED IN COORDINATION WITH AREA MANAGER",
+        "RESTRICTED AREA EPR986 GDANSK. WITHIN AREA ALL "
+        "FLIGHTS ARE PROHIBITED EXC: "
+        "1. STATE AVIATION 2. PERFORMED IN COORDINATION "
+        "WITH AREA MANAGER",
     ),
     (
         "D6240/26",
@@ -75,7 +82,8 @@ NOISE_CORPUS = [
     (
         "D4675/26",
         "QRTCA",
-        "TEMPORARY RESERVED AREA EPTR415 - RUBNO WIELKIE (UNMANNED AERIAL VEHICLES FLIGHTS). "
+        "TEMPORARY RESERVED AREA EPTR415 - RUBNO WIELKIE "
+        "(UNMANNED AERIAL VEHICLES FLIGHTS). "
         "TIME OF ACT ACCORDING TO AIRSPACE USE PLAN.",
     ),
     (
@@ -87,13 +95,15 @@ NOISE_CORPUS = [
     (
         "D6294/26",
         "QRRCA",
-        "RESTRICTED AREA EPR985 TARNOW. WITHIN AREA ALL FLIGHTS ARE PROHIBITED EXC: "
+        "RESTRICTED AREA EPR985 TARNOW. WITHIN AREA ALL "
+        "FLIGHTS ARE PROHIBITED EXC: "
         "1) ACFT BELONGING TO AREA MANAGER",
     ),
     (
         "D3822/26",
         "QRTCA",
-        "REF AIP SUP 102/26 (ENR 5) IN DISTRIBUTION: POINT 1 DATE AND TIME (UTC)",
+        "REF AIP SUP 102/26 (ENR 5) IN DISTRIBUTION: POINT 1 "
+        "DATE AND TIME (UTC)",
     ),
     (
         "D3844/26",
@@ -104,13 +114,15 @@ NOISE_CORPUS = [
     (
         "D3845/26",
         "QRTCA",
-        "TEMPORARY RESTRICTED AREA ACTIVATED TEMPORARY RESERVED AREA EPTR505B BIELSK PODLASKI. "
+        "TEMPORARY RESTRICTED AREA ACTIVATED TEMPORARY "
+        "RESERVED AREA EPTR505B BIELSK PODLASKI. "
         "TIME OF ACTIVITY ACCORDING TO AIRSPACE USE PLAN.",
     ),
     (
         "D3853/26",
         "QRTCA",
-        "RESTRICTED AREA EPTR325 - BRZESKO. TIME OF ACTIVITY ACCORDNIG TO AIRSPACE USE PLAN.",
+        "RESTRICTED AREA EPTR325 - BRZESKO. TIME OF ACTIVITY "
+        "ACCORDNIG TO AIRSPACE USE PLAN.",
     ),
     (
         "D3594/26",
@@ -127,7 +139,8 @@ NOISE_CORPUS = [
     (
         "D5086/26",
         "QRTCA",
-        "REF AIP IFR ENR 5.2.1.2, EPTR153 IS TEMPORARY AVBL FOR REQUEST AND ACTIVATION H24.",
+        "REF AIP IFR ENR 5.2.1.2, EPTR153 IS TEMPORARY AVBL "
+        "FOR REQUEST AND ACTIVATION H24.",
     ),
 ]
 
@@ -143,7 +156,10 @@ class TestNotamPassthrough(unittest.TestCase):
         self.assertFalse(_is_passthrough("QRTCA"))
 
     def test_qatlc_passthrough_with_aup_text(self):
-        text = "WARSAW TMA CLOSED. TIME OF ACT ACCORDING TO AIRSPACE USE PLAN (AUP)."
+        text = (
+            "WARSAW TMA CLOSED. TIME OF ACT ACCORDING TO "
+            "AIRSPACE USE PLAN (AUP)."
+        )
         self.assertTrue(_is_passthrough("QATLC"))
         # Passthrough bypasses text filter even when exclude patterns match.
         self.assertIsNotNone(_exclude_reason(text))
@@ -175,7 +191,10 @@ class TestNotamExcludeReason(unittest.TestCase):
                 )
 
     def test_unusual_closure_passes(self):
-        text = "WARSAW TMA CLOSED DUE TO UNIDENTIFIED AIRCRAFT. ALL FLIGHTS PROHIBITED."
+        text = (
+            "WARSAW TMA CLOSED DUE TO UNIDENTIFIED AIRCRAFT. "
+            "ALL FLIGHTS PROHIBITED."
+        )
         self.assertFalse(_is_passthrough("QRTCA"))
         self.assertIsNone(_exclude_reason(text, self.patterns))
 
@@ -185,10 +204,13 @@ class TestNotamExcludeReason(unittest.TestCase):
 
     def test_epr131_standing_restriction_passes(self):
         text = (
-            "RESTRICTED AREA EPR131. WITHIN AREA ALL FLIGHTS ARE PROHIBITED EXC: "
+            "RESTRICTED AREA EPR131. WITHIN AREA ALL FLIGHTS "
+            "ARE PROHIBITED EXC: "
             "- GARDA, ALPHA SCRAMBLE FLIGHTS "
-            "- CIVIL UNMANNED AERIAL VEHICLES EXC ADIZ BIALORUS AND ADIZ UKRAINE "
-            "- STATE AVIATION FLIGHTS AND FLIGHTS OF AIR MEDICAL RESCUE (LPR)"
+            "- CIVIL UNMANNED AERIAL VEHICLES EXC ADIZ BIALORUS "
+            "AND ADIZ UKRAINE "
+            "- STATE AVIATION FLIGHTS AND FLIGHTS OF AIR MEDICAL "
+            "RESCUE (LPR)"
         )
         self.assertFalse(_is_passthrough("QRRCA"))
         self.assertIsNone(_exclude_reason(text, self.patterns))
