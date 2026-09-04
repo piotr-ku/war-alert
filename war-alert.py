@@ -1,4 +1,7 @@
 #!/usr/bin/env python3
+"""
+    War-alert main entry point: poll sources and send notifications.
+"""
 
 import dotenv
 import json
@@ -18,7 +21,11 @@ from sources.base import Source
 from sources.notam import SourceNotam
 from sources.rss import News, SourceRSS
 from sources.twitterapi import SourceTwitterAPI
-from sources.telegram import SourceTelegram, load_channel_configs, telegram_credentials_configured
+from sources.telegram import (
+    SourceTelegram,
+    load_channel_configs,
+    telegram_credentials_configured,
+)
 from processors.unique import ProcessorUnique
 from processors.openai import ProcessorOpenAI
 from processors.base import Content, Processor
@@ -45,9 +52,11 @@ def process_and_notify(
         for notifier in all_notifiers(logger):
             if notifier.notify(item, logger):
                 notified = True
+        # Mark seen only after at least one notifier succeeds
         if notified:
             ProcessorUnique().mark_seen(item)
         return notified
+    # A later processor dropped the item, but Unique already passed it
     if unique_content is not None:
         ProcessorUnique().mark_seen(unique_content)
     return False
@@ -149,10 +158,14 @@ def all_notifiers(logger: logging.Logger) -> list[Notifier]:
     return all_notifiers
 
 def _log_level() -> int:
+    """
+        Parse LOG_LEVEL from the environment, defaulting to INFO.
+    """
     raw = os.environ.get("LOG_LEVEL", "INFO")
     if raw is None or raw.strip() == "":
         return logging.INFO
     level = getattr(logging, raw.strip().upper(), None)
+    # Fall back when LOG_LEVEL is not a valid logging constant
     if isinstance(level, int):
         return level
     return logging.INFO
@@ -169,10 +182,16 @@ if __name__ == "__main__":
 
     http_port = os.environ.get("WEBHOOK_PORT") or os.environ.get("HEALTH_PORT")
     if http_port is not None and http_port != "":
-        if os.environ.get("WEBHOOK_PORT") and not os.environ.get("WEBHOOK_SECRET"):
+        webhook_port = os.environ.get("WEBHOOK_PORT")
+        if webhook_port and not os.environ.get("WEBHOOK_SECRET"):
             logger.error(json.dumps({
-                "time": time.strftime("%Y-%m-%dT%H:%M:%S", time.localtime()),
-                "msg": "WEBHOOK_SECRET is required when WEBHOOK_PORT is set",
+                "time": time.strftime(
+                    "%Y-%m-%dT%H:%M:%S",
+                    time.localtime(),
+                ),
+                "msg": (
+                    "WEBHOOK_SECRET is required when WEBHOOK_PORT is set"
+                ),
             }))
             sys.exit(1)
         start_http_server(logger, process_and_notify, int(http_port))

@@ -1,3 +1,7 @@
+"""
+    HTTP health check and inbound webhook server for war-alert.
+"""
+
 import json
 import logging
 import os
@@ -12,7 +16,10 @@ from processors.unique import ProcessorUnique
 from sources.alertsua import Alert
 from sources.rss import News
 
-ProcessAndNotify = Callable[[Content, list[type[Processor]], logging.Logger], bool]
+ProcessAndNotify = Callable[
+    [Content, list[type[Processor]], logging.Logger],
+    bool,
+]
 
 ALERT_PROCESSORS = [ProcessorUnique]
 NEWS_PROCESSORS = [ProcessorUnique, ProcessorOpenAI]
@@ -37,6 +44,7 @@ def start_http_server(
         secret = webhook_secret
 
         def log_message(self, format, *args):
+            # Use structured app logs instead of BaseHTTPRequestHandler noise
             return
 
         def _send_json(self, status: int, body: dict) -> None:
@@ -48,6 +56,9 @@ def start_http_server(
             self.wfile.write(payload)
 
         def _check_auth(self) -> bool:
+            """
+                Verify the Bearer token matches WEBHOOK_SECRET.
+            """
             auth = self.headers.get("Authorization", "")
             if not auth.startswith("Bearer "):
                 return False
@@ -55,6 +66,9 @@ def start_http_server(
             return token == self.secret and self.secret != ""
 
         def _read_json(self) -> dict | None:
+            """
+                Read and parse a JSON request body.
+            """
             content_length = self.headers.get("Content-Length")
             if content_length is None:
                 return None
@@ -70,7 +84,14 @@ def start_http_server(
             except (json.JSONDecodeError, UnicodeDecodeError):
                 return None
 
-        def _parse_content(self, data: dict, content_class: type) -> Content | None:
+        def _parse_content(
+            self,
+            data: dict,
+            content_class: type,
+        ) -> Content | None:
+            """
+                Build a Content object from webhook JSON fields.
+            """
             title = data.get("title")
             if not title or not isinstance(title, str):
                 return None
@@ -79,7 +100,10 @@ def start_http_server(
                 description = ""
             pub_date = data.get("pubDate")
             if pub_date is None:
-                pub_date = time.strftime("%Y-%m-%dT%H:%M:%S", time.localtime())
+                pub_date = time.strftime(
+                    "%Y-%m-%dT%H:%M:%S",
+                    time.localtime(),
+                )
             link = data.get("link", "")
             if link is None:
                 link = ""
@@ -91,9 +115,15 @@ def start_http_server(
             processors: list[type[Processor]],
             source: str,
         ) -> None:
+            """
+                Authenticate, parse, and process one webhook request.
+            """
             if not self._check_auth():
                 app_logger.warning(json.dumps({
-                    "time": time.strftime("%Y-%m-%dT%H:%M:%S", time.localtime()),
+                    "time": time.strftime(
+                        "%Y-%m-%dT%H:%M:%S",
+                        time.localtime(),
+                    ),
                     "source": "webhook",
                     "endpoint": self.path,
                     "msg": "Unauthorized",
@@ -112,7 +142,10 @@ def start_http_server(
                 return
 
             app_logger.info(json.dumps({
-                "time": time.strftime("%Y-%m-%dT%H:%M:%S", time.localtime()),
+                "time": time.strftime(
+                    "%Y-%m-%dT%H:%M:%S",
+                    time.localtime(),
+                ),
                 "source": source,
                 "title": content.title,
             }))
@@ -122,20 +155,34 @@ def start_http_server(
             self._send_json(200, {"status": status})
 
         def do_GET(self) -> None:
+            """
+                Serve the health check endpoint.
+            """
             if self.path == "/health":
                 self._send_json(200, {"status": "ok"})
                 return
             self._send_json(404, {"error": "Not found"})
 
         def do_POST(self) -> None:
+            """
+                Dispatch webhook routes when WEBHOOK_SECRET is configured.
+            """
             if not webhooks_enabled:
                 self._send_json(503, {"error": "Webhooks not configured"})
                 return
             if self.path == "/webhook/alert":
-                self._handle_webhook(Alert, ALERT_PROCESSORS, "webhook/alert")
+                self._handle_webhook(
+                    Alert,
+                    ALERT_PROCESSORS,
+                    "webhook/alert",
+                )
                 return
             if self.path == "/webhook/news":
-                self._handle_webhook(News, NEWS_PROCESSORS, "webhook/news")
+                self._handle_webhook(
+                    News,
+                    NEWS_PROCESSORS,
+                    "webhook/news",
+                )
                 return
             self._send_json(404, {"error": "Not found"})
 
@@ -144,7 +191,10 @@ def start_http_server(
     thread.start()
 
     logger.info(json.dumps({
-        "time": time.strftime("%Y-%m-%dT%H:%M:%S", time.localtime()),
+        "time": time.strftime(
+            "%Y-%m-%dT%H:%M:%S",
+            time.localtime(),
+        ),
         "source": "http",
         "msg": "HTTP server started",
         "port": port,

@@ -1,3 +1,7 @@
+"""
+    OpenAI classification processor for war-alert.
+"""
+
 import json
 import logging
 import time

@@ -1,3 +1,7 @@
+"""
+    RSS feed source for war-alert.
+"""
+
 import json
 import html.parser
 import logging

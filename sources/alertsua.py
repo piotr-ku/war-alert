@@ -1,3 +1,7 @@
+"""
+    Alerts.in.ua source for war-alert.
+"""
+
 import json
 import os
 import time

@@ -1,3 +1,7 @@
+"""
+    TwitterAPI.io source for war-alert.
+"""
+
 import json
 import logging
 import os
@@ -47,7 +51,11 @@ def _usernames() -> list[str]:
     raw = os.environ.get("TWITTERAPI_USERNAMES", "")
     if raw is None or raw.strip() == "":
         return []
-    return [username.lstrip("@") for username in raw.split() if username.strip()]
+    return [
+        username.lstrip("@")
+        for username in raw.split()
+        if username.strip()
+    ]
 
 
 def _api_key() -> str:
@@ -58,8 +66,15 @@ def _headers() -> dict[str, str]:
     return {"x-api-key": _api_key()}
 
 
-def _log(logger: logging.Logger, payload: dict, level: int = logging.INFO) -> None:
-    payload.setdefault("time", time.strftime("%Y-%m-%dT%H:%M:%S", time.localtime()))
+def _log(
+    logger: logging.Logger,
+    payload: dict,
+    level: int = logging.INFO,
+) -> None:
+    payload.setdefault(
+        "time",
+        time.strftime("%Y-%m-%dT%H:%M:%S", time.localtime()),
+    )
     logger.log(level, json.dumps(payload, ensure_ascii=False))
 
 
@@ -69,7 +84,14 @@ def _author_title(author: dict[str, Any]) -> str:
     return f"{name} (@{username})"
 
 
-def _prepare_tweet(raw: dict[str, Any], username: str, logger: logging.Logger) -> Tweet | None:
+def _prepare_tweet(
+    raw: dict[str, Any],
+    username: str,
+    logger: logging.Logger,
+) -> Tweet | None:
+    """
+        Build a Tweet from one API item or log a parse error.
+    """
     text = raw.get("text")
     if text is None or not isinstance(text, str):
         _log(logger, {
@@ -98,7 +120,10 @@ def _prepare_tweet(raw: dict[str, Any], username: str, logger: logging.Logger) -
 
     pub_date = raw.get("createdAt")
     if pub_date is None or not isinstance(pub_date, str):
-        pub_date = time.strftime("%Y-%m-%dT%H:%M:%S", time.localtime())
+        pub_date = time.strftime(
+            "%Y-%m-%dT%H:%M:%S",
+            time.localtime(),
+        )
 
     return Tweet(
         _author_title(author),
@@ -109,6 +134,9 @@ def _prepare_tweet(raw: dict[str, Any], username: str, logger: logging.Logger) -
 
 
 def _extract_tweets(payload: dict) -> list | None:
+    """
+        Read tweets from either nested or flat API response shapes.
+    """
     data = payload.get("data")
     if isinstance(data, dict):
         tweets = data.get("tweets")
@@ -161,6 +189,9 @@ class SourceTwitterAPI(Source):
         return items
 
     def _fetch_username(self, username: str) -> list[Tweet]:
+        """
+            Fetch the latest tweets for one username.
+        """
         url = f"{self.base_url}/twitter/user/last_tweets"
         params = {
             "userName": username,
@@ -209,7 +240,9 @@ class SourceTwitterAPI(Source):
                 "source": "TwitterAPI",
                 "msg": "Error fetching tweets",
                 "username": username,
-                "api_message": payload.get("msg") or payload.get("message"),
+                "api_message": (
+                    payload.get("msg") or payload.get("message")
+                ),
             }, level=logging.ERROR)
             return []
 
