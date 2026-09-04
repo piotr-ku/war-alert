@@ -1,3 +1,7 @@
+"""
+    FAA NMS NOTAM source for war-alert.
+"""
+
 import base64
 import json
 import logging
@@ -104,6 +108,9 @@ def _normalize_selection_code(value: Any) -> str | None:
 
 
 def _extract_qcode(notam: dict, core: dict) -> str | None:
+    """
+        Resolve a Q-code from selectionCode, text, or ICAO translation.
+    """
     qcode = _normalize_selection_code(notam.get("selectionCode"))
     if qcode is not None:
         return qcode
@@ -151,7 +158,10 @@ def _log_notam(
     level: int = logging.INFO,
 ) -> None:
     logger.log(level, json.dumps({
-        "time": time.strftime("%Y-%m-%dT%H:%M:%S", time.localtime()),
+        "time": time.strftime(
+            "%Y-%m-%dT%H:%M:%S",
+            time.localtime(),
+        ),
         "source": "NOTAM",
         **payload,
     }, ensure_ascii=False))
@@ -174,6 +184,9 @@ def _log_source_config_once(logger: logging.Logger, base_url: str) -> None:
 
 
 def _get_access_token(logger: logging.Logger) -> str | None:
+    """
+        Return a cached FAA NMS OAuth token or request a new one.
+    """
     global _token, _token_expiry
 
     client_id = os.environ.get("FAA_NMS_CLIENT_ID", "")
@@ -184,6 +197,7 @@ def _get_access_token(logger: logging.Logger) -> str | None:
     auth_url = _auth_url()
 
     with _token_lock:
+        # Reuse the token until one minute before expiry
         if _token is not None and time.time() < _token_expiry:
             _log_notam(logger, {
                 "msg": "FAA NMS token reused",
@@ -264,7 +278,10 @@ def _parse_notam_fields(feature: dict) -> dict | None:
 
     pub_date = notam.get("issued") or notam.get("effectiveStart")
     if pub_date is None:
-        pub_date = time.strftime("%Y-%m-%dT%H:%M:%S", time.localtime())
+        pub_date = time.strftime(
+            "%Y-%m-%dT%H:%M:%S",
+            time.localtime(),
+        )
 
     return {
         "number": str(number).strip(),
@@ -277,7 +294,11 @@ def _parse_notam_fields(feature: dict) -> dict | None:
 
 def _locations() -> list[str]:
     raw = os.environ.get("NOTAM_LOCATIONS", DEFAULT_LOCATIONS)
-    return [location.strip().upper() for location in raw.split() if location.strip()]
+    return [
+        location.strip().upper()
+        for location in raw.split()
+        if location.strip()
+    ]
 
 
 def _qcode_prefixes() -> list[str]:
@@ -297,19 +318,39 @@ def _passthrough_qcodes() -> list[str]:
 def _exclude_patterns() -> list[str]:
     raw = os.environ.get("NOTAM_TEXT_EXCLUDE")
     if raw is None:
-        return [p.strip().upper() for p in DEFAULT_TEXT_EXCLUDE.split(",") if p.strip()]
+        return [
+            p.strip().upper()
+            for p in DEFAULT_TEXT_EXCLUDE.split(",")
+            if p.strip()
+        ]
     if raw.strip() == "":
         return []
-    return [p.strip().upper() for p in raw.split(",") if p.strip()]
+    return [
+        p.strip().upper()
+        for p in raw.split(",")
+        if p.strip()
+    ]
 
 
-def _is_passthrough(qcode: str | None, prefixes: list[str] | None = None) -> bool:
+def _is_passthrough(
+    qcode: str | None,
+    prefixes: list[str] | None = None,
+) -> bool:
+    """
+        Return True when the Q-code bypasses text noise filters.
+    """
     if prefixes is None:
         prefixes = _passthrough_qcodes()
     return _qcode_matches(qcode, prefixes)
 
 
-def _exclude_reason(text: str, patterns: list[str] | None = None) -> str | None:
+def _exclude_reason(
+    text: str,
+    patterns: list[str] | None = None,
+) -> str | None:
+    """
+        Return the first matching noise pattern or None.
+    """
     if patterns is None:
         patterns = _exclude_patterns()
     upper = _normalize_whitespace(text).upper()
@@ -339,11 +380,40 @@ def _request_delay() -> float:
         return DEFAULT_REQUEST_DELAY
 
 
+def _classify_notam(
+    fields: dict,
+    qcode_prefixes: list[str],
+    passthrough_prefixes: list[str],
+    exclude_patterns: list[str],
+) -> tuple[str, bool, str | None]:
+    """
+        Classify a NOTAM as skip, noise, or keep.
+
+        Returns (decision, passthrough, noise_reason).
+    """
+    if not _qcode_matches(fields["qcode"], qcode_prefixes):
+        return "skip", False, None
+
+    passthrough = _is_passthrough(
+        fields["qcode"],
+        passthrough_prefixes,
+    )
+    if not passthrough:
+        reason = _exclude_reason(fields["text"], exclude_patterns)
+        if reason is not None:
+            return "noise", passthrough, reason
+
+    return "keep", passthrough, None
+
+
 def _parse_nms_payload(
     payload: dict,
     logger: logging.Logger,
     location: str,
 ) -> list[dict]:
+    """
+        Parse a successful FAA NMS GeoJSON response into field dicts.
+    """
     status = payload.get("status", "")
     if not isinstance(status, str) or status.lower() != "success":
         _log_notam(logger, {
@@ -381,7 +451,10 @@ class SourceNotam(Source):
             Initialize the NOTAM source.
         """
         self.logger = logger
-        self.base_url = os.environ.get("FAA_NMS_BASE_URL", DEFAULT_BASE_URL).rstrip("/")
+        self.base_url = os.environ.get(
+            "FAA_NMS_BASE_URL",
+            DEFAULT_BASE_URL,
+        ).rstrip("/")
 
     def processors(self) -> list[Processor]:
         """
@@ -416,6 +489,7 @@ class SourceNotam(Source):
         delay = _request_delay()
         started = time.monotonic()
         for index, location in enumerate(locations):
+            # Fetch NOTAMs for one FIR location
             location_notams, duration_ms = self._fetch_location_notams(
                 location,
                 token,
@@ -426,31 +500,34 @@ class SourceNotam(Source):
                 "duration_ms": duration_ms,
             }
             for fields in location_notams:
-                if not _qcode_matches(fields["qcode"], qcode_prefixes):
+                decision, passthrough, reason = _classify_notam(
+                    fields,
+                    qcode_prefixes,
+                    passthrough_prefixes,
+                    exclude_patterns,
+                )
+                if decision == "skip":
                     skipped_qcode += 1
                     continue
+                if decision == "noise":
+                    filtered_count += 1
+                    noise_reasons[reason] = (
+                        noise_reasons.get(reason, 0) + 1
+                    )
+                    _log_notam(self.logger, {
+                        "msg": "NOTAM filtered as noise",
+                        "number": fields["number"],
+                        "location": fields["location"],
+                        "qcode": fields["qcode"],
+                        "reason": reason,
+                        "text": fields["text"],
+                    }, level=logging.DEBUG)
+                    continue
 
-                passthrough = _is_passthrough(
-                    fields["qcode"],
-                    passthrough_prefixes,
-                )
-                if not passthrough:
-                    reason = _exclude_reason(fields["text"], exclude_patterns)
-                    if reason is not None:
-                        filtered_count += 1
-                        noise_reasons[reason] = noise_reasons.get(reason, 0) + 1
-                        _log_notam(self.logger, {
-                            "msg": "NOTAM filtered as noise",
-                            "number": fields["number"],
-                            "location": fields["location"],
-                            "qcode": fields["qcode"],
-                            "reason": reason,
-                            "text": fields["text"],
-                        }, level=logging.DEBUG)
-                        continue
-
+                # Deduplicate within this poll cycle
                 dedup_key = _normalize_whitespace(
-                    f"{fields['number']} {fields['location']}: {fields['text']}",
+                    f"{fields['number']} {fields['location']}: "
+                    f"{fields['text']}",
                 )
                 if dedup_key in seen_keys:
                     duplicate_count += 1
@@ -466,6 +543,7 @@ class SourceNotam(Source):
                     "text": fields["text"],
                 })
 
+            # Pace requests between locations
             if index < len(locations) - 1:
                 time.sleep(delay)
 
@@ -494,6 +572,9 @@ class SourceNotam(Source):
         location: str,
         token: str,
     ) -> tuple[list[dict], int]:
+        """
+            Fetch and parse NOTAMs for one location from FAA NMS.
+        """
         url = f"{self.base_url}/v1/notams"
         headers = {
             "Authorization": f"Bearer {token}",
@@ -512,7 +593,12 @@ class SourceNotam(Source):
 
         for attempt in range(max_attempts):
             try:
-                response = requests.get(url, headers=headers, params=params, timeout=30)
+                response = requests.get(
+                    url,
+                    headers=headers,
+                    params=params,
+                    timeout=30,
+                )
             except Exception as e:
                 _log_notam(self.logger, {
                     "msg": "Error fetching NOTAMs from FAA NMS",
@@ -521,6 +607,7 @@ class SourceNotam(Source):
                 }, level=logging.ERROR)
                 return [], int((time.monotonic() - started) * 1000)
 
+            # Retry once after a rate-limit response
             if response.status_code == 429 and attempt < max_attempts - 1:
                 _log_notam(self.logger, {
                     "msg": "FAA NMS rate limit hit, retrying",
@@ -534,11 +621,17 @@ class SourceNotam(Source):
         duration_ms = int((time.monotonic() - started) * 1000)
 
         if response is None or response.status_code != 200:
+            status = (
+                response.status_code
+                if response is not None
+                else None
+            )
+            body = response.text if response is not None else ""
             _log_notam(self.logger, {
                 "msg": "Error fetching NOTAMs from FAA NMS",
                 "location": location,
-                "status": response.status_code if response is not None else None,
-                "response": response.text if response is not None else "",
+                "status": status,
+                "response": body,
                 "duration_ms": duration_ms,
             }, level=logging.ERROR)
             return [], duration_ms
@@ -576,7 +669,10 @@ class SourceNotam(Source):
             Prepare a NOTAM content object.
         """
         qcode = fields["qcode"] or "unknown"
-        title = f"NOTAM {fields['number']} ({fields['location']}, {qcode})"
+        title = (
+            f"NOTAM {fields['number']} "
+            f"({fields['location']}, {qcode})"
+        )
         description = fields["text"]
         link = f"{NOTAM_LINK}?query={fields['location']}"
         notam = Notam(title, description, fields["pubDate"], link)
