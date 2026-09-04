@@ -13,6 +13,7 @@ import time
 
 from notifiers.base import Notifier
 from notifiers.email import NotifierEmail
+from notifiers.ntfy import NotifierNtfy
 from notifiers.pushover import NotifierPushover
 from notifiers.telegram import NotifierTelegram
 from sources.alertsua import SourceAlertsInUa
@@ -146,6 +147,11 @@ def all_notifiers(logger: logging.Logger) -> list[Notifier]:
     if os.environ.get("PUSHOVER_TOKEN") is not None \
         and os.environ.get("PUSHOVER_TOKEN") != "":
         all_notifiers.append(NotifierPushover())
+
+    # Add the ntfy notifier if the topic is set
+    if os.environ.get("NTFY_TOPIC") is not None \
+        and os.environ.get("NTFY_TOPIC") != "":
+        all_notifiers.append(NotifierNtfy())
 
     # Add the Email notifier if the token is set
     if os.environ.get("EMAIL_FROM") is not None \

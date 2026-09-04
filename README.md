@@ -1,7 +1,8 @@
 # War Alert Script
 
 This script monitors RSS feeds for specific news alerts, processes them
-with OpenAI's API, and sends notifications via Pushover or Telegram. It
+with OpenAI's API, and sends notifications via Pushover, ntfy, or
+Telegram. It
 ensures that duplicate news items are ignored and provides detailed logging
 for each step of the process.
 
@@ -14,7 +15,7 @@ for each step of the process.
 - Monitors FAA NMS NOTAMs for Polish airspace restrictions.
 - Detects duplicate news items using MD5 hashes.
 - Processes news items using OpenAI's API with custom prompts.
-- Sends notifications via Pushover for relevant alerts.
+- Sends notifications via Pushover, ntfy, or Telegram for relevant alerts.
 - Handles graceful shutdown via signal handling.
 - Configurable via environment variables.
 
@@ -46,6 +47,11 @@ for each step of the process.
    RSS_URLS=<space-separated-list-of-rss-urls>
    PUSHOVER_TOKEN=<your-pushover-api-token>
    PUSHOVER_USER=<your-pushover-user-key>
+   NTFY_TOPIC=<your-ntfy-topic>
+   # NTFY_URL=https://ntfy.sh
+   # NTFY_TOKEN=<bearer-token-for-reserved-topics>
+   # NTFY_PRIORITY=high
+   # NTFY_TAGS=
    OPENAI_API_KEY=<your-openai-api-key>
    PROMPT_FILE=<path-to-prompt-file>
    SLEEP_DELAY=600
@@ -152,8 +158,13 @@ The script logs JSON lines to `stdout`. Set `LOG_LEVEL` (`DEBUG`, `INFO`,
 per-item NOTAM dumps and noise-filter details.
 
 ### Notifications
-Relevant alerts are sent as Pushover notifications with the title "War
-Alert" and the justification from the OpenAI response.
+Relevant alerts are sent via all configured notifiers (Pushover, ntfy,
+Telegram, email). Pushover uses the item title and OpenAI justification;
+ntfy sends the same body with `Title`, `Priority` (default `high`), and
+`Click` headers. Set `NTFY_TOPIC` to enable ntfy (required). Use a
+hard-to-guess topic name or `NTFY_TOKEN` for reserved topics — public ntfy
+topics have no sign-up and the topic name acts as a password. Optionally
+set `NTFY_URL` for a self-hosted server.
 
 ### NOTAM monitoring
 When FAA NMS credentials are configured, the script polls active NOTAMs for
@@ -284,7 +295,7 @@ curl -X POST http://localhost:8080/webhook/news \
 
 ## Notes
 
-- Ensure the OpenAI and Pushover credentials are valid.
+- Ensure the OpenAI and notification credentials are valid.
 - Adjust RSS feed URLs and prompt content to match your requirements.
 - Temporary files for tracking processed items are stored in the directory
   specified by the `TMPDIR` environment variable.
