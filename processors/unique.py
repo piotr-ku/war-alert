@@ -1,3 +1,7 @@
+"""
+    Deduplication processor for war-alert.
+"""
+
 import os
 import hashlib
 import json
@@ -54,9 +58,13 @@ class ProcessorUnique(Processor):
         """
         content_hash = calculate_md5_hash(str(content))
         with _hash_lock:
+            # Drop duplicates before later processors run
             if search_hash_in_file(content_hash):
                 payload = {
-                    "time": time.strftime("%Y-%m-%dT%H:%M:%S", time.localtime()),
+                    "time": time.strftime(
+                        "%Y-%m-%dT%H:%M:%S",
+                        time.localtime(),
+                    ),
                     "msg": "Content skipped as duplicate",
                 }
                 title = getattr(content, "title", None)
@@ -64,6 +72,7 @@ class ProcessorUnique(Processor):
                     payload["title"] = title
                 logger.debug(json.dumps(payload, ensure_ascii=False))
                 return None
+        # Store hash on content; mark_seen writes it after notify
         content._unique_hash = content_hash
         return content
 
@@ -75,5 +84,6 @@ class ProcessorUnique(Processor):
         if content_hash is None:
             content_hash = calculate_md5_hash(str(content))
         with _hash_lock:
+            # Write only once so failed sends can be retried
             if not search_hash_in_file(content_hash):
                 write_hash_to_file(content_hash)

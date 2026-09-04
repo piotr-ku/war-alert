@@ -1,3 +1,7 @@
+"""
+    Pushover notifier for war-alert.
+"""
+
 import json
 import os
 import logging
@@ -8,7 +12,7 @@ from processors.base import Content
 
 class NotifierPushover(Notifier):
     """
-        A base class for all Pushover notifiers.
+        Send alert notifications via the Pushover API.
     """
     def __init__(self):
         """
@@ -31,7 +35,10 @@ class NotifierPushover(Notifier):
             })
         except Exception as e:
             logger.error(json.dumps({
-                "time": time.strftime("%Y-%m-%dT%H:%M:%S", time.localtime()),
+                "time": time.strftime(
+                    "%Y-%m-%dT%H:%M:%S",
+                    time.localtime(),
+                ),
                 "msg": "Error sending Pushover notification",
                 "exception": str(e),
             }, ensure_ascii=False))
@@ -40,7 +47,10 @@ class NotifierPushover(Notifier):
         # Check the response
         if response.status_code != 200:
             logger.error(json.dumps({
-                "time": time.strftime("%Y-%m-%dT%H:%M:%S", time.localtime()),
+                "time": time.strftime(
+                    "%Y-%m-%dT%H:%M:%S",
+                    time.localtime(),
+                ),
                 "status": response.status_code,
                 "info": response.headers,
                 "response": response.text,

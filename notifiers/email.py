@@ -1,3 +1,7 @@
+"""
+    Email notifier for war-alert.
+"""
+
 import email.message
 import json
 import os
@@ -9,7 +13,7 @@ from processors.base import Content
 
 class NotifierEmail(Notifier):
     """
-        A base class for all email notifiers.
+        Send alert notifications via SMTP email.
     """
     def __init__(self, recipient: str):
         """
@@ -39,7 +43,7 @@ class NotifierEmail(Notifier):
         login = os.environ.get("SMTP_LOGIN", "your.email@example.com")
         password = os.environ.get("SMTP_PASSWORD", "your_password")
 
-        # Wysyłanie wiadomości e-mail
+        # Send the email message
         try:
             with smtplib.SMTP(smtp_server, port) as server:
                 server.starttls()
@@ -47,14 +51,20 @@ class NotifierEmail(Notifier):
                 server.send_message(msg)
 
             logger.info(json.dumps({
-                "time": time.strftime("%Y-%m-%dT%H:%M:%S", time.localtime()),
+                "time": time.strftime(
+                    "%Y-%m-%dT%H:%M:%S",
+                    time.localtime(),
+                ),
                 "msg": "Email notification sent",
                 "to": self.recipient,
             }, ensure_ascii=False))
             return True
         except Exception as e:
             logger.error(json.dumps({
-                "time": time.strftime("%Y-%m-%dT%H:%M:%S", time.localtime()),
+                "time": time.strftime(
+                    "%Y-%m-%dT%H:%M:%S",
+                    time.localtime(),
+                ),
                 "msg": "Error sending email notification",
                 "exception": str(e),
             }, ensure_ascii=False))

@@ -1,3 +1,7 @@
+"""
+    Base processor and content interfaces for war-alert.
+"""
+
 from abc import ABC, abstractmethod
 
 class Content(ABC):

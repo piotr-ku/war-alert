@@ -1,3 +1,7 @@
+"""
+    Telegram Bot API notifier for war-alert.
+"""
+
 import json
 import os
 import logging
@@ -14,6 +18,9 @@ MAX_ATTEMPTS = 3
 
 
 def _min_interval() -> float:
+    """
+        Return the minimum seconds between Telegram API sends.
+    """
     raw = os.environ.get("TELEGRAM_MIN_INTERVAL")
     if raw is None or raw.strip() == "":
         return DEFAULT_MIN_INTERVAL
@@ -24,6 +31,9 @@ def _min_interval() -> float:
 
 
 def _retry_after_seconds(response: requests.Response) -> float:
+    """
+        Parse retry_after from a Telegram 429 response.
+    """
     try:
         payload = response.json()
         parameters = payload.get("parameters", {})
@@ -36,7 +46,7 @@ def _retry_after_seconds(response: requests.Response) -> float:
 
 class NotifierTelegram(Notifier):
     """
-        A base class for all Telegram notifiers.
+        Send alert notifications via the Telegram Bot API.
     """
     def __init__(self):
         """
@@ -50,28 +60,39 @@ class NotifierTelegram(Notifier):
         """
         global _last_send_time
 
-        url = f"{self.api_url}{os.environ.get('TELEGRAM_BOT_TOKEN')}/sendMessage"
+        token = os.environ.get("TELEGRAM_BOT_TOKEN")
+        url = f"{self.api_url}{token}/sendMessage"
         payload = {
             "chat_id": os.environ.get("TELEGRAM_CHANNEL_ID"),
-            "text": f"{content.title}\n\n{content.description}\n\n{content.link}",
+            "text": (
+                f"{content.title}\n\n"
+                f"{content.description}\n\n"
+                f"{content.link}"
+            ),
         }
 
         for attempt in range(MAX_ATTEMPTS):
+            # Enforce a minimum interval between sends
             with _send_lock:
                 wait = _min_interval() - (time.time() - _last_send_time)
             if wait > 0:
                 time.sleep(wait)
 
+            # POST the message to the Bot API
             try:
                 response = requests.post(url, json=payload)
             except Exception as e:
                 logger.error(json.dumps({
-                    "time": time.strftime("%Y-%m-%dT%H:%M:%S", time.localtime()),
+                    "time": time.strftime(
+                        "%Y-%m-%dT%H:%M:%S",
+                        time.localtime(),
+                    ),
                     "msg": "Error sending Telegram notification",
                     "exception": str(e),
                 }, ensure_ascii=False))
                 return False
 
+            # Check for a successful API response
             if response.status_code == 200:
                 try:
                     if response.json().get("ok"):
@@ -81,17 +102,24 @@ class NotifierTelegram(Notifier):
                 except json.JSONDecodeError:
                     pass
                 logger.error(json.dumps({
-                    "time": time.strftime("%Y-%m-%dT%H:%M:%S", time.localtime()),
+                    "time": time.strftime(
+                        "%Y-%m-%dT%H:%M:%S",
+                        time.localtime(),
+                    ),
                     "msg": "Error sending Telegram notification",
                     "status": response.status_code,
                     "response": response.text,
                 }, ensure_ascii=False))
                 return False
 
+            # Retry after a rate-limit response
             if response.status_code == 429 and attempt < MAX_ATTEMPTS - 1:
                 sleep_for = _retry_after_seconds(response) + 0.5
                 logger.warning(json.dumps({
-                    "time": time.strftime("%Y-%m-%dT%H:%M:%S", time.localtime()),
+                    "time": time.strftime(
+                        "%Y-%m-%dT%H:%M:%S",
+                        time.localtime(),
+                    ),
                     "msg": "Telegram rate limit hit, retrying",
                     "retry": attempt + 1,
                     "sleep": sleep_for,
@@ -100,7 +128,10 @@ class NotifierTelegram(Notifier):
                 continue
 
             logger.error(json.dumps({
-                "time": time.strftime("%Y-%m-%dT%H:%M:%S", time.localtime()),
+                "time": time.strftime(
+                    "%Y-%m-%dT%H:%M:%S",
+                    time.localtime(),
+                ),
                 "msg": "Error sending Telegram notification",
                 "status": response.status_code,
                 "response": response.text,

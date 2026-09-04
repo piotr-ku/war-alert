@@ -1,3 +1,7 @@
+"""
+    Base notifier interface for war-alert.
+"""
+
 from abc import ABC, abstractmethod
 from processors.base import Content
 
