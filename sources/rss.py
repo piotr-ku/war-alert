@@ -1,5 +1,10 @@
 """
     RSS feed source for war-alert.
+
+    Environment variables:
+        RSS_URLS — space-separated feed URLs. One SourceRSS per URL.
+
+    Processors: news_processors() — ProcessorUnique then LLM classification.
 """
 
 import json

@@ -1,5 +1,23 @@
 """
     Configurable LLM classification processor for war-alert.
+
+    Environment variables:
+        CLASSIFICATION_PROCESSOR — provider name or comma-separated fallback
+            chain (default openai). Supported: openai, openrouter.
+            Example: openrouter,openai tries OpenRouter first, then OpenAI.
+        OPENAI_API_KEY, OPENAI_MODEL — OpenAI provider.
+        OPENROUTER_API_KEY, OPENROUTER_MODEL, OPENROUTER_BASE_URL —
+            OpenRouter provider.
+        PROMPT_FILE — template with <content> placeholder (default
+            ./prompt.txt).
+
+    Fallback rules:
+        The next provider runs only when the previous one fails (API error,
+        empty response, or invalid JSON). A valid result: "no" does NOT
+        trigger fallback — the item is dropped.
+
+    Used by RSS, Twitter, Telegram sources and /webhook/news.
+    NOTAM and /webhook/alert skip this processor.
 """
 
 import json

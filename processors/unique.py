@@ -1,5 +1,16 @@
 """
     Deduplication processor for war-alert.
+
+    Uses MD5 hashes of str(content), persisted in $TMPDIR/war-alert.txt
+    (default /tmp/war-alert.txt).
+
+    process() drops items whose hash is already in the file (debug log:
+    Content skipped as duplicate). mark_seen() writes the hash after at
+    least one notifier succeeds, or when a later processor drops the item
+    after Unique already passed it — so failed sends can be retried on the
+    next poll, but classifier rejections are not retried.
+
+    Used by all sources and /webhook/alert.
 """
 
 import os

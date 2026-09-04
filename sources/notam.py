@@ -1,5 +1,48 @@
 """
     FAA NMS NOTAM source for war-alert.
+
+    Environment variables:
+        FAA_NMS_CLIENT_ID, FAA_NMS_CLIENT_SECRET — enable this source.
+        FAA_NMS_BASE_URL — API base (default production NMS API).
+        FAA_NMS_AUTH_URL — OAuth token URL (default production).
+        NOTAM_LOCATIONS — space-separated ICAO codes (default EPWW EPWA).
+        NOTAM_QCODES — comma-separated Q-code prefixes to match.
+        NOTAM_PASSTHROUGH_QCODES — always alert, skip text filter
+            (default QATLC,QRPCA for TMA/CTR and Ukraine NPZ notices).
+        NOTAM_TEXT_EXCLUDE — comma substrings; routine TRA/PJE/UAV/AUP
+            noise is dropped when matched Q-code is not passthrough.
+            Set to empty to disable text filtering.
+        NOTAM_CLASSIFICATION — optional API filter: INTERNATIONAL,
+            DOMESTIC, MILITARY, LOCAL_MILITARY, or FDC. Unset = all active.
+        NOTAM_REQUEST_DELAY — seconds between location queries (default 1.1;
+            staging API enforces ~1 req/s per client).
+
+    Filtering pipeline:
+        1. Q-code must match NOTAM_QCODES.
+        2. Passthrough Q-codes skip the text exclude stage.
+        3. Other matches are dropped when text contains any
+           NOTAM_TEXT_EXCLUDE substring.
+        4. Within-poll dedup by NOTAM number + location + text.
+        5. ProcessorUnique dedup across polls (MD5 of content text).
+
+    Processors: [ProcessorUnique] only — no LLM classification.
+
+    Structured logs (source NOTAM):
+        info — NOTAM source configured (once), FAA NMS token acquired,
+            NOTAM matched, NOTAM noise filtered (reason histogram),
+            NOTAM fetch complete (fetched, skipped_qcode, filtered,
+            duplicates, matched, duration_ms, per-location counts).
+        debug — per-item NOTAM filtered as noise (full text), full
+            per-location NOTAM list from FAA NMS.
+
+    Standing restrictions (e.g. EPR129) are reported once on first sight;
+    ProcessorUnique logs Content skipped as duplicate at debug thereafter.
+
+    Items are marked seen after processing (including classifier rejection
+    on other sources) or after at least one notifier succeeds; failed
+    deliveries are retried on the next poll. On first run many NOTAMs may
+    match at once — Telegram sends are throttled via TELEGRAM_MIN_INTERVAL
+    in notifiers/telegram.py.
 """
 
 import base64

@@ -1,5 +1,42 @@
 """
     Telegram channel source for war-alert (Telethon user client).
+
+    Reads public channels with a user account — the notification bot
+    (TELEGRAM_BOT_TOKEN) cannot read third-party channels.
+
+    Environment variables:
+        TELEGRAM_API_ID, TELEGRAM_API_HASH — from my.telegram.org.
+        TELEGRAM_CHANNELS_FILE — path to YAML (default ./telegram.yaml).
+        TELEGRAM_SESSION_FILE — file session (default telegram.session).
+        TELEGRAM_SESSION_STRING — optional in-memory session for Docker.
+        TELEGRAM_PHONE — optional phone for telegram_login.py.
+
+    Channel config (telegram.yaml):
+        channels:
+          - username: AMK_Mapping
+            limit: 20
+            filters:   # optional regex list; omit or null = all posts
+              - '(?i)\\bpoland\\b'
+
+    First-time login: stop war-alert, run python3 telegram_login.py once
+    (requires -it for SMS). Do not run login while war-alert holds the
+    session file. See telegram_login.py for Docker compose commands.
+
+    Each poll connects Telethon, fetches recent posts, disconnects — the
+    session file is not held open between SLEEP_DELAY cycles.
+
+    Processors: news_processors() — ProcessorUnique then
+    ProcessorClassification (LLM).
+
+    Structured logs (source Telegram):
+        info — Telegram source configured (once), Telegram fetch complete
+            (fetched, filtered, matched, posts).
+        debug — Telegram post filtered (regex or empty text).
+
+    Session errors:
+        SecurityError / "Server sent a very old message" — delete
+        telegram.session and telegram.session-journal, re-run login.
+        SQLite lock — war-alert still running; stop it before login.
 """
 
 import json

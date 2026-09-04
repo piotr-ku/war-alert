@@ -1,5 +1,24 @@
 """
     HTTP health check and inbound webhook server for war-alert.
+
+    Started when WEBHOOK_PORT or HEALTH_PORT is set (war-alert.py).
+    WEBHOOK_SECRET is required when WEBHOOK_PORT is set.
+
+    Endpoints:
+        GET /health — no auth, {"status": "ok"}.
+        POST /webhook/alert — Bearer auth, Alert content,
+            processors [ProcessorUnique], notify immediately.
+        POST /webhook/news — Bearer auth, News content,
+            processors news_processors() (dedup + LLM).
+
+    JSON body fields: title (required), description, pubDate, link.
+
+    Responses:
+        200 {"status": "notified"|"ignored"}
+        400 invalid JSON or missing title
+        401 unauthorized Bearer token
+        404 unknown path
+        503 webhooks disabled (WEBHOOK_SECRET empty on POST routes)
 """
 
 import json

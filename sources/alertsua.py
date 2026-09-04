@@ -1,5 +1,13 @@
 """
     Alerts.in.ua source for war-alert.
+
+    Environment variables:
+        ALERTSUA_TOKEN — API token; enables this source.
+        ALERTSUA_FILTER_TYPES — comma-separated alert types (default
+            air_raid,chemical,nuclear).
+        ALERTSUA_FILTER_REGIONS — comma-separated region names to match.
+
+    Processors: [ProcessorUnique] only — no LLM classification.
 """
 
 import json

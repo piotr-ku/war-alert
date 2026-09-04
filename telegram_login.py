@@ -1,5 +1,18 @@
 """
     Interactive Telegram login helper for war-alert.
+
+    Creates telegram.session (or uses TELEGRAM_SESSION_STRING). Requires
+    TELEGRAM_API_ID and TELEGRAM_API_HASH in .env.
+
+    Docker:
+        docker compose stop war-alert
+        docker compose run --rm -it war-alert python3 telegram_login.py
+        docker compose up -d
+
+    Set TELEGRAM_PHONE in .env to skip the interactive phone prompt.
+    Stop war-alert before login — the session file cannot be opened by
+    two processes. On success prints an optional TELEGRAM_SESSION_STRING
+    for container deployments.
 """
 
 import os

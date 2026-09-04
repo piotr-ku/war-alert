@@ -1,5 +1,15 @@
 """
     ntfy.sh notifier for war-alert.
+
+    Environment variables:
+        NTFY_TOPIC — required; topic name acts as a password on ntfy.sh.
+        NTFY_URL — server base URL (default https://ntfy.sh).
+        NTFY_TOKEN — Bearer token for reserved topics.
+        NTFY_PRIORITY — Priority header (default high).
+        NTFY_TAGS — optional Tags header.
+
+    Sends body: description + link. Headers: Title, Priority, Click (when
+    link set). Non-latin-1 header values are RFC 2047 encoded for requests.
 """
 
 import base64

@@ -1,5 +1,20 @@
 """
     TwitterAPI.io source for war-alert.
+
+    Environment variables:
+        TWITTERAPI_KEY — API key from twitterapi.io dashboard.
+        TWITTERAPI_USERNAMES — space-separated handles (@ optional).
+        TWITTERAPI_BASE_URL — override API host (default api.twitterapi.io).
+
+    Each poll calls GET /twitter/user/last_tweets per handle (first page,
+    up to 20 tweets, replies excluded). Tweets pass through
+    news_processors(): ProcessorUnique dedup, then ProcessorClassification.
+
+    Structured logs (source TwitterAPI):
+        info — startup config (usernames, base_url), fetch complete
+            (username count, tweet count).
+        error — fetch/parse failures per username.
+        debug — empty tweet list in API response.
 """
 
 import json

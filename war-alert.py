@@ -1,6 +1,22 @@
 #!/usr/bin/env python3
 """
     War-alert main entry point: poll sources and send notifications.
+
+    Poll loop: all_sources() → fetch → process_and_notify() per item →
+    sleep SLEEP_DELAY (default 600 s).
+
+    process_and_notify runs source processors in order, then all configured
+    notifiers. Returns True when at least one notifier succeeds. See
+    processors/unique.py for dedup / mark_seen timing.
+
+    Sources enabled by non-empty env vars (see each sources/*.py module
+    docstring). Notifiers: Pushover, ntfy, Telegram bot, email.
+
+    Logging: JSON lines to stdout. LOG_LEVEL (default INFO) controls
+    verbosity; DEBUG adds NOTAM dumps and filter details.
+
+    HTTP: HEALTH_PORT or WEBHOOK_PORT starts webhooks/server.py in a
+    background thread. SIGUSR1 sends a test notification.
 """
 
 import dotenv

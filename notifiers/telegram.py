@@ -1,5 +1,15 @@
 """
-    Telegram Bot API notifier for war-alert.
+    Telegram Bot API notifier for war-alert (outbound notifications).
+
+    Environment variables:
+        TELEGRAM_BOT_TOKEN — bot token from @BotFather.
+        TELEGRAM_CHANNEL_ID — target channel or chat ID.
+        TELEGRAM_MIN_INTERVAL — minimum seconds between sends (default 1.0).
+            On first NOTAM poll many items may match; throttling avoids
+            Telegram HTTP 429. Retries up to 3 times with retry_after.
+
+    Separate from Telegram channel monitoring (sources/telegram.py Telethon
+    user client).
 """
 
 import json
