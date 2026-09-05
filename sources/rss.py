@@ -34,11 +34,14 @@ class News(Content):
         """
             Return a string representation of a news.
         """
-        if self.description is None:
-            return self.title
-        if self.title is None:
-            return self.description
-        return f"{self.title}: {self.description}"
+        title = self.title or ""
+        description = self.description or ""
+        # Use whichever field is present when the other is empty
+        if description == "":
+            return title
+        if title == "":
+            return description
+        return f"{title}: {description}"
 
 class TagRemover(html.parser.HTMLParser):
     """
@@ -66,6 +69,16 @@ def remove_tags(text):
     parser = TagRemover()
     parser.feed(text)
     return parser.text
+
+def _child_text(element, tag: str) -> str | None:
+    """
+        Return stripped text of a child tag, or None if missing.
+    """
+    child = element.find(tag)
+    if child is None or child.text is None:
+        return None
+    text = child.text.strip()
+    return text or None
 
 class SourceRSS(Source):
     """
@@ -118,21 +131,48 @@ class SourceRSS(Source):
             }))
             return []
 
-        # Return a list of items
-        return [self.get_item(item) \
-            for item in root.findall("./channel/item")]
+        # Parse each item; skip entries with no usable text
+        items = []
+        for item in root.findall("./channel/item"):
+            news = self.get_item(item)
+            if news is not None:
+                items.append(news)
+        return items
 
-    def get_item(self, element) -> News:
+    def get_item(self, element) -> News | None:
         """
             Return an RSS item from an XML element.
         """
         try:
-            return News(
-                element.find("title").text,
-                remove_tags(element.find("description").text),
-                element.find("pubDate").text,
-                element.find("link").text,
+            # RSS 2.0 fields are optional; missing tags are normal
+            title = _child_text(element, "title") or ""
+            description = remove_tags(
+                _child_text(element, "description"),
             )
+            pub_date = _child_text(element, "pubDate")
+            link = _child_text(element, "link") or ""
+
+            # Need title or description to classify the item
+            if title == "" and description == "":
+                self.logger.error(json.dumps({
+                    "time": time.strftime(
+                        "%Y-%m-%dT%H:%M:%S",
+                        time.localtime(),
+                    ),
+                    "url": self.url,
+                    "msg": "Error parsing RSS item",
+                    "reason": "missing title and description",
+                }))
+                return None
+
+            # Default pubDate when the feed omits it
+            if pub_date is None:
+                pub_date = time.strftime(
+                    "%Y-%m-%dT%H:%M:%S",
+                    time.localtime(),
+                )
+
+            return News(title, description, pub_date, link)
         except Exception as e:
             self.logger.error(json.dumps({
                 "time": time.strftime("%Y-%m-%dT%H:%M:%S", time.localtime()),
