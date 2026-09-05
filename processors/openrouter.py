@@ -10,6 +10,7 @@ import time
 import openai
 
 import config
+from processors.llm_meta import build_query_meta
 
 DEFAULT_BASE_URL = "https://openrouter.ai/api/v1"
 
@@ -18,9 +19,9 @@ def query(
     system_prompt: str,
     user_prompt: str,
     logger: logging.Logger,
-) -> str:
+) -> tuple[str, dict[str, str]]:
     """
-        Return a response from OpenRouter API in a string format.
+        Return OpenRouter response text and query metadata for logs.
     """
     api_key = os.environ.get("OPENROUTER_API_KEY", "")
     if api_key == "":
@@ -31,7 +32,7 @@ def query(
             ),
             "msg": "OPENROUTER_API_KEY is not set",
         }, ensure_ascii=False))
-        return ""
+        return "", {}
 
     base_url = os.environ.get(
         "OPENROUTER_BASE_URL",
@@ -66,10 +67,12 @@ def query(
             "msg": "Error sending OpenRouter request",
             "exception": str(e),
         }, ensure_ascii=False))
-        return ""
+        return "", {}
 
     try:
-        return completion.choices[0].message.content or ""
+        text = completion.choices[0].message.content or ""
+        model = completion.model or config.openrouter_model()
+        return text, build_query_meta(completion, model)
     except Exception as e:
         logger.error(json.dumps({
             "time": time.strftime(
@@ -79,4 +82,4 @@ def query(
             "msg": "Error parsing OpenRouter response",
             "exception": str(e),
         }, ensure_ascii=False))
-        return ""
+        return "", {}

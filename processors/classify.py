@@ -33,7 +33,10 @@ from processors.openrouter import query as openrouter_query
 from processors.unique import ProcessorUnique
 
 # Registry of supported classification providers
-PROVIDERS: dict[str, Callable[[str, str, logging.Logger], str]] = {
+PROVIDERS: dict[
+    str,
+    Callable[[str, str, logging.Logger], tuple[str, dict[str, str]]],
+] = {
     "openai": openai_query,
     "openrouter": openrouter_query,
 }
@@ -90,6 +93,7 @@ def _parse_classification(
     content: Content,
     logger: logging.Logger,
     provider: str,
+    query_meta: dict[str, str],
 ) -> Content | None | str:
     """
         Parse a provider JSON answer.
@@ -107,6 +111,7 @@ def _parse_classification(
             ),
             "provider": provider,
             "error": str(e),
+            **query_meta,
             **_content_log_fields(content),
         }, ensure_ascii=False))
         return "invalid"
@@ -119,6 +124,7 @@ def _parse_classification(
             ),
             "provider": provider,
             "error": "result or justification not found",
+            **query_meta,
             **_content_log_fields(content),
         }, ensure_ascii=False))
         return "invalid"
@@ -135,6 +141,7 @@ def _parse_classification(
             ),
             "provider": provider,
             "error": "result or justification is not a string",
+            **query_meta,
             **_content_log_fields(content),
         }, ensure_ascii=False))
         return "invalid"
@@ -157,6 +164,7 @@ def _parse_classification(
             "error": "invalid result or justification",
             "result": result,
             "justification": justification,
+            **query_meta,
             **_content_log_fields(content),
         }, ensure_ascii=False))
         return "invalid"
@@ -170,6 +178,7 @@ def _parse_classification(
             "provider": provider,
             "result": result_norm,
             "justification": justification_text,
+            **query_meta,
             **_content_log_fields(content),
         }, ensure_ascii=False))
         return None
@@ -182,6 +191,7 @@ def _parse_classification(
         "provider": provider,
         "result": result_norm,
         "justification": justification_text,
+        **query_meta,
         **_content_log_fields(content),
     }, ensure_ascii=False))
 
@@ -226,7 +236,11 @@ class ProcessorClassification(Processor):
                 }, ensure_ascii=False))
 
             query_fn = PROVIDERS[provider]
-            answer = query_fn(system_prompt, user_prompt, logger)
+            answer, query_meta = query_fn(
+                system_prompt,
+                user_prompt,
+                logger,
+            )
             if answer == "":
                 continue
 
@@ -235,6 +249,7 @@ class ProcessorClassification(Processor):
                 content,
                 logger,
                 provider,
+                query_meta,
             )
             if result == "invalid":
                 continue

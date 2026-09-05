@@ -1,3 +1,4 @@
+import json
 import logging
 import unittest
 from unittest.mock import Mock, patch
@@ -10,6 +11,23 @@ from processors.classify import (
 )
 from processors.unique import ProcessorUnique
 from sources.rss import News
+
+
+class RecordingHandler(logging.Handler):
+    def __init__(self):
+        super().__init__()
+        self.records = []
+
+    def emit(self, record):
+        self.records.append(record)
+
+    def payloads(self, level=None):
+        result = []
+        for record in self.records:
+            if level is not None and record.levelno != level:
+                continue
+            result.append(json.loads(record.getMessage()))
+        return result
 
 
 class TestParseProcessorNames(unittest.TestCase):
@@ -58,7 +76,11 @@ class TestNewsProcessors(unittest.TestCase):
 
 class TestProcessorClassification(unittest.TestCase):
     def setUp(self):
+        self.handler = RecordingHandler()
         self.logger = logging.getLogger("test_classify")
+        self.logger.handlers = [self.handler]
+        self.logger.setLevel(logging.DEBUG)
+        self.logger.propagate = False
         self.content = News(
             "Alert title",
             "Alert description",
@@ -73,7 +95,8 @@ class TestProcessorClassification(unittest.TestCase):
     def test_accepts_relevant_item(self, _mock_system_prompt):
         mock_openai = Mock(
             return_value=(
-                '{"result": "yes", "justification": "Relevant alert"}'
+                '{"result": "yes", "justification": "Relevant alert"}',
+                {"model": "gpt-test"},
             ),
         )
         providers = {"openai": mock_openai}
@@ -101,11 +124,12 @@ class TestProcessorClassification(unittest.TestCase):
     def test_rejects_item_without_fallback(self, _mock_system_prompt):
         mock_openai = Mock(
             return_value=(
-                '{"result": "no", "justification": "Not relevant"}'
+                '{"result": "no", "justification": "Not relevant"}',
+                {"model": "gpt-test"},
             ),
         )
         providers = {
-            "openrouter": Mock(return_value=""),
+            "openrouter": Mock(return_value=("", {})),
             "openai": mock_openai,
         }
         user_prompt = str(self.content)
@@ -135,11 +159,42 @@ class TestProcessorClassification(unittest.TestCase):
         "processors.classify.get_system_prompt",
         return_value="system prompt",
     )
+    def test_logs_model_and_cost_on_rejection(self, _mock_system_prompt):
+        mock_openrouter = Mock(
+            return_value=(
+                '{"result": "no", "justification": "Not relevant"}',
+                {
+                    "model": "openai/gpt-4o-mini",
+                    "cost": "0.0000841",
+                },
+            ),
+        )
+        with patch.dict(
+            "processors.classify.PROVIDERS",
+            {"openrouter": mock_openrouter},
+            clear=True,
+        ):
+            processor = ProcessorClassification(["openrouter"])
+            result = processor.process(self.content, self.logger)
+
+        self.assertIsNone(result)
+        payloads = self.handler.payloads(logging.INFO)
+        self.assertEqual(len(payloads), 1)
+        self.assertEqual(payloads[0]["provider"], "openrouter")
+        self.assertEqual(payloads[0]["result"], "no")
+        self.assertEqual(payloads[0]["model"], "openai/gpt-4o-mini")
+        self.assertEqual(payloads[0]["cost"], "0.0000841")
+
+    @patch(
+        "processors.classify.get_system_prompt",
+        return_value="system prompt",
+    )
     def test_fallback_on_api_failure(self, _mock_system_prompt):
-        mock_openrouter = Mock(return_value="")
+        mock_openrouter = Mock(return_value=("", {}))
         mock_openai = Mock(
             return_value=(
-                '{"result": "yes", "justification": "Fallback ok"}'
+                '{"result": "yes", "justification": "Fallback ok"}',
+                {"model": "gpt-test"},
             ),
         )
         providers = {
@@ -174,10 +229,16 @@ class TestProcessorClassification(unittest.TestCase):
         return_value="system prompt",
     )
     def test_fallback_on_invalid_json(self, _mock_system_prompt):
-        mock_openrouter = Mock(return_value="not-json")
+        mock_openrouter = Mock(
+            return_value=(
+                "not-json",
+                {"model": "openai/gpt-test", "cost": "0.0001"},
+            ),
+        )
         mock_openai = Mock(
             return_value=(
-                '{"result": "yes", "justification": "Fallback ok"}'
+                '{"result": "yes", "justification": "Fallback ok"}',
+                {"model": "gpt-test"},
             ),
         )
         providers = {
@@ -206,6 +267,9 @@ class TestProcessorClassification(unittest.TestCase):
             user_prompt,
             self.logger,
         )
+        error_payloads = self.handler.payloads(logging.ERROR)
+        self.assertEqual(error_payloads[0]["model"], "openai/gpt-test")
+        self.assertEqual(error_payloads[0]["cost"], "0.0001")
 
     @patch(
         "processors.classify.get_system_prompt",
@@ -216,11 +280,15 @@ class TestProcessorClassification(unittest.TestCase):
         _mock_system_prompt,
     ):
         mock_openrouter = Mock(
-            return_value='{"result": "yes", "justification": "no"}',
+            return_value=(
+                '{"result": "yes", "justification": "no"}',
+                {"model": "openai/gpt-test"},
+            ),
         )
         mock_openai = Mock(
             return_value=(
-                '{"result": "no", "justification": "Wildlife, not a threat"}'
+                '{"result": "no", "justification": "Wildlife, not a threat"}',
+                {"model": "gpt-test"},
             ),
         )
         providers = {
@@ -256,8 +324,8 @@ class TestProcessorClassification(unittest.TestCase):
     )
     def test_all_providers_fail_returns_none(self, _mock_system_prompt):
         providers = {
-            "openrouter": Mock(return_value=""),
-            "openai": Mock(return_value=""),
+            "openrouter": Mock(return_value=("", {})),
+            "openai": Mock(return_value=("", {})),
         }
         with patch.dict(
             "processors.classify.PROVIDERS",
