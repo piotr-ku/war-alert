@@ -5,7 +5,8 @@
         processor — provider name or comma-separated fallback chain
             (default openai). Supported: openai, openrouter.
         openai_model, openrouter_model — model names per provider.
-        prompt — template with <content> placeholder.
+        prompt — system prompt sent to the LLM (item text is the user
+            message).
 
     API keys stay in .env: OPENAI_API_KEY, OPENROUTER_API_KEY,
     OPENROUTER_BASE_URL.
@@ -32,7 +33,7 @@ from processors.openrouter import query as openrouter_query
 from processors.unique import ProcessorUnique
 
 # Registry of supported classification providers
-PROVIDERS: dict[str, Callable[[str, logging.Logger], str]] = {
+PROVIDERS: dict[str, Callable[[str, str, logging.Logger], str]] = {
     "openai": openai_query,
     "openrouter": openrouter_query,
 }
@@ -63,11 +64,13 @@ def parse_processor_names(raw: str | None) -> list[str]:
     return names
 
 
-def get_prompt(content: str) -> str:
+def get_system_prompt() -> str:
     """
-        Return the classification prompt with content substituted.
+        Return the classification system prompt from config.
+
+        Strips a legacy <content> placeholder if present in old configs.
     """
-    return config.classification_prompt().replace("<content>", content)
+    return config.classification_prompt().replace("<content>", "")
 
 
 def _content_log_fields(content: Content) -> dict:
@@ -169,7 +172,8 @@ class ProcessorClassification(Processor):
         """
             Classify content; try fallback providers only on API failures.
         """
-        prompt = get_prompt(str(content))
+        system_prompt = get_system_prompt()
+        user_prompt = str(content)
 
         for index, provider in enumerate(self.providers):
             if index > 0:
@@ -184,7 +188,7 @@ class ProcessorClassification(Processor):
                 }, ensure_ascii=False))
 
             query_fn = PROVIDERS[provider]
-            answer = query_fn(prompt, logger)
+            answer = query_fn(system_prompt, user_prompt, logger)
             if answer == "":
                 continue
 

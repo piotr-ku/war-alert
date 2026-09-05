@@ -4,6 +4,7 @@ from unittest.mock import Mock, patch
 
 from processors.classify import (
     ProcessorClassification,
+    get_system_prompt,
     news_processors,
     parse_processor_names,
 )
@@ -38,6 +39,15 @@ class TestParseProcessorNames(unittest.TestCase):
         self.assertIn("unknown", str(ctx.exception))
 
 
+class TestGetSystemPrompt(unittest.TestCase):
+    @patch(
+        "processors.classify.config.classification_prompt",
+        return_value="Classify: <content>",
+    )
+    def test_strips_legacy_content_placeholder(self, _mock_prompt):
+        self.assertEqual(get_system_prompt(), "Classify: ")
+
+
 class TestNewsProcessors(unittest.TestCase):
     def test_returns_unique_and_classification(self):
         processors = news_processors()
@@ -56,14 +66,18 @@ class TestProcessorClassification(unittest.TestCase):
             "https://example.com/item",
         )
 
-    @patch("processors.classify.get_prompt", return_value="prompt")
-    def test_accepts_relevant_item(self, _mock_prompt):
+    @patch(
+        "processors.classify.get_system_prompt",
+        return_value="system prompt",
+    )
+    def test_accepts_relevant_item(self, _mock_system_prompt):
         mock_openai = Mock(
             return_value=(
                 '{"result": "yes", "justification": "Relevant alert"}'
             ),
         )
         providers = {"openai": mock_openai}
+        user_prompt = str(self.content)
         with patch.dict(
             "processors.classify.PROVIDERS",
             providers,
@@ -74,10 +88,17 @@ class TestProcessorClassification(unittest.TestCase):
 
         self.assertIs(result, self.content)
         self.assertEqual(result.description, "Relevant alert")
-        mock_openai.assert_called_once()
+        mock_openai.assert_called_once_with(
+            "system prompt",
+            user_prompt,
+            self.logger,
+        )
 
-    @patch("processors.classify.get_prompt", return_value="prompt")
-    def test_rejects_item_without_fallback(self, _mock_prompt):
+    @patch(
+        "processors.classify.get_system_prompt",
+        return_value="system prompt",
+    )
+    def test_rejects_item_without_fallback(self, _mock_system_prompt):
         mock_openai = Mock(
             return_value=(
                 '{"result": "no", "justification": "Not relevant"}'
@@ -87,6 +108,7 @@ class TestProcessorClassification(unittest.TestCase):
             "openrouter": Mock(return_value=""),
             "openai": mock_openai,
         }
+        user_prompt = str(self.content)
         with patch.dict(
             "processors.classify.PROVIDERS",
             providers,
@@ -98,11 +120,22 @@ class TestProcessorClassification(unittest.TestCase):
             result = processor.process(self.content, self.logger)
 
         self.assertIsNone(result)
-        mock_openai.assert_called_once()
-        providers["openrouter"].assert_called_once()
+        mock_openai.assert_called_once_with(
+            "system prompt",
+            user_prompt,
+            self.logger,
+        )
+        providers["openrouter"].assert_called_once_with(
+            "system prompt",
+            user_prompt,
+            self.logger,
+        )
 
-    @patch("processors.classify.get_prompt", return_value="prompt")
-    def test_fallback_on_api_failure(self, _mock_prompt):
+    @patch(
+        "processors.classify.get_system_prompt",
+        return_value="system prompt",
+    )
+    def test_fallback_on_api_failure(self, _mock_system_prompt):
         mock_openrouter = Mock(return_value="")
         mock_openai = Mock(
             return_value=(
@@ -113,6 +146,7 @@ class TestProcessorClassification(unittest.TestCase):
             "openrouter": mock_openrouter,
             "openai": mock_openai,
         }
+        user_prompt = str(self.content)
         with patch.dict(
             "processors.classify.PROVIDERS",
             providers,
@@ -124,11 +158,22 @@ class TestProcessorClassification(unittest.TestCase):
             result = processor.process(self.content, self.logger)
 
         self.assertIs(result, self.content)
-        mock_openrouter.assert_called_once()
-        mock_openai.assert_called_once()
+        mock_openrouter.assert_called_once_with(
+            "system prompt",
+            user_prompt,
+            self.logger,
+        )
+        mock_openai.assert_called_once_with(
+            "system prompt",
+            user_prompt,
+            self.logger,
+        )
 
-    @patch("processors.classify.get_prompt", return_value="prompt")
-    def test_fallback_on_invalid_json(self, _mock_prompt):
+    @patch(
+        "processors.classify.get_system_prompt",
+        return_value="system prompt",
+    )
+    def test_fallback_on_invalid_json(self, _mock_system_prompt):
         mock_openrouter = Mock(return_value="not-json")
         mock_openai = Mock(
             return_value=(
@@ -139,6 +184,7 @@ class TestProcessorClassification(unittest.TestCase):
             "openrouter": mock_openrouter,
             "openai": mock_openai,
         }
+        user_prompt = str(self.content)
         with patch.dict(
             "processors.classify.PROVIDERS",
             providers,
@@ -150,11 +196,22 @@ class TestProcessorClassification(unittest.TestCase):
             result = processor.process(self.content, self.logger)
 
         self.assertIs(result, self.content)
-        mock_openrouter.assert_called_once()
-        mock_openai.assert_called_once()
+        mock_openrouter.assert_called_once_with(
+            "system prompt",
+            user_prompt,
+            self.logger,
+        )
+        mock_openai.assert_called_once_with(
+            "system prompt",
+            user_prompt,
+            self.logger,
+        )
 
-    @patch("processors.classify.get_prompt", return_value="prompt")
-    def test_all_providers_fail_returns_none(self, _mock_prompt):
+    @patch(
+        "processors.classify.get_system_prompt",
+        return_value="system prompt",
+    )
+    def test_all_providers_fail_returns_none(self, _mock_system_prompt):
         providers = {
             "openrouter": Mock(return_value=""),
             "openai": Mock(return_value=""),

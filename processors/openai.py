@@ -11,7 +11,11 @@ import openai
 import config
 
 
-def query(prompt: str, logger: logging.Logger) -> str:
+def query(
+    system_prompt: str,
+    user_prompt: str,
+    logger: logging.Logger,
+) -> str:
     """
         Return a response from OpenAI API in a string format.
     """
@@ -21,8 +25,12 @@ def query(prompt: str, logger: logging.Logger) -> str:
             model=config.openai_model(),
             messages=[
                 {
+                    "role": "system",
+                    "content": system_prompt,
+                },
+                {
                     "role": "user",
-                    "content": prompt,
+                    "content": user_prompt,
                 }
             ],
             response_format={"type": "json_object"},

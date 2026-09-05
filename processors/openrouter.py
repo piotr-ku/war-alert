@@ -14,7 +14,11 @@ import config
 DEFAULT_BASE_URL = "https://openrouter.ai/api/v1"
 
 
-def query(prompt: str, logger: logging.Logger) -> str:
+def query(
+    system_prompt: str,
+    user_prompt: str,
+    logger: logging.Logger,
+) -> str:
     """
         Return a response from OpenRouter API in a string format.
     """
@@ -43,8 +47,12 @@ def query(prompt: str, logger: logging.Logger) -> str:
             model=config.openrouter_model(),
             messages=[
                 {
+                    "role": "system",
+                    "content": system_prompt,
+                },
+                {
                     "role": "user",
-                    "content": prompt,
+                    "content": user_prompt,
                 }
             ],
             response_format={"type": "json_object"},

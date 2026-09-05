@@ -19,45 +19,42 @@ classification:
   processor: openai
   openai_model: gpt-4o-mini
   openrouter_model: openai/gpt-4o-mini
-  # Must contain a <content> placeholder replaced with item text.
+  # System prompt for LLM classification. Item text is sent separately
+  # as the user message.
   prompt: |
-    Does the news limited by "-----" describe any of the following scenarios?
+    Classify the user message for a war-alert system.
 
-    - evacuation of any consulate or embassy in NATO countries threatened by conflict
-    - recommendation from a consulate or embassy of any country for its citizens to leave any NATO country threatened by conflict
-    - Russian diplomats leaving any NATO country threatened by conflict
-    - suspicion of document destruction in a Russian embassy or consulate in any NATO country threatened by conflict
-    - debate on announcing mobilization in any NATO country threatened by conflict
-    - debate on introducing martial law in any NATO country threatened by conflict
-    - announcement of mobilization in any NATO country threatened by conflict
-    - declaration of martial law in any NATO country threatened by conflict
-    - missile attack on any NATO country
-    - use of nuclear weapons anywhere in the world
-    - information about troop concentration near the border of any NATO country
-    - information from the services of any NATO country about a planned significant provocation by Russia
-    - information about a significant provocation by Russia or NATO
-    - closure of the border by any NATO country
-    - introduction of border controls by any NATO country
-    - Putin's address that could be interpreted as justifying aggression against NATO countries to the Russian nation
+    Reply JSON only: {"result":"yes|no","justification":"..."}
 
-    Assume that NATO countries threatened by conflict are: Poland, Sweden, Finland, Lithuania, Latvia, Estonia.
+    Scope (conflict-threatened NATO): Poland, Sweden, Finland,
+    Lithuania, Latvia, Estonia.
 
-    -----
-    <content>
-    -----
+    result "no" for analysis, forecasts, speculation, or commentary—
+    not factual reports.
 
-    Respond in JSON format:
+    result "yes" if the item reports as fact:
 
-    {"result": "<yes|no>", "justification": "<justification>"}
+    In scope states:
+    - embassy/consulate evacuation or citizen-departure advisory
+    - Russian diplomats leaving
+    - suspected document destruction at Russian mission
+    - mobilization or martial law debated, announced, or declared
 
-    The "result" field should be set to "no" if the news concerns analyses, predictions, forecasts, potential events, or political commentary rather than facts.
+    Any NATO member:
+    - missile attack
+    - troop buildup near NATO border
+    - border closure or border controls
 
-    If the news fits the described scenarios, the <justification> placeholder should contain a summary of the news in English. If it does not fit, the justification should be given in one short sentence.
+    Other:
+    - nuclear weapons use anywhere
+    - NATO services: planned major Russian provocation
+    - major factual Russia–NATO provocation
+    - Putin address justifying NATO aggression to Russians
 
-    Additionally, if the news is started by "Everything is fine, it's just a test.",
-    respond with:
+    justification: English summary if yes; one short sentence if no.
 
-    {"result": "yes", "justification": "News correctly recognized as a system test."}
+    If message starts with "Everything is fine, it's just a test.",
+    return {"result":"yes","justification":"News correctly recognized as a system test."}
 
 rss:
   urls:
