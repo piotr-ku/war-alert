@@ -211,6 +211,49 @@ class TestProcessorClassification(unittest.TestCase):
         "processors.classify.get_system_prompt",
         return_value="system prompt",
     )
+    def test_swapped_yes_no_fields_triggers_fallback(
+        self,
+        _mock_system_prompt,
+    ):
+        mock_openrouter = Mock(
+            return_value='{"result": "yes", "justification": "no"}',
+        )
+        mock_openai = Mock(
+            return_value=(
+                '{"result": "no", "justification": "Wildlife, not a threat"}'
+            ),
+        )
+        providers = {
+            "openrouter": mock_openrouter,
+            "openai": mock_openai,
+        }
+        user_prompt = str(self.content)
+        with patch.dict(
+            "processors.classify.PROVIDERS",
+            providers,
+            clear=True,
+        ):
+            processor = ProcessorClassification(
+                ["openrouter", "openai"],
+            )
+            result = processor.process(self.content, self.logger)
+
+        self.assertIsNone(result)
+        mock_openrouter.assert_called_once_with(
+            "system prompt",
+            user_prompt,
+            self.logger,
+        )
+        mock_openai.assert_called_once_with(
+            "system prompt",
+            user_prompt,
+            self.logger,
+        )
+
+    @patch(
+        "processors.classify.get_system_prompt",
+        return_value="system prompt",
+    )
     def test_all_providers_fail_returns_none(self, _mock_system_prompt):
         providers = {
             "openrouter": Mock(return_value=""),

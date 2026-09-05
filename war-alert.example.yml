@@ -22,27 +22,25 @@ classification:
   # System prompt for LLM classification. Item text is sent separately
   # as the user message.
   prompt: |
-    Classify the user message for a war-alert system.
+    Classify the user message. Facts only, not analysis or commentary.
 
-    Reply JSON only: {"result":"yes|no","justification":"..."}
+    Reply with one JSON object. result is exactly yes or no.
+    justification is a sentence, never the words yes or no.
 
-    Scope (conflict-threatened NATO): Poland, Sweden, Finland,
-    Lithuania, Latvia, Estonia.
+    Match: {"result":"yes","justification":"<English summary>"}
+    No match: {"result":"no","justification":"<one short English sentence>"}
 
-    result "no" for analysis, forecasts, speculation, or commentary—
-    not factual reports.
+    result is yes only if the item reports as fact one of:
 
-    result "yes" if the item reports as fact:
-
-    In scope states:
+    Scope NATO (Poland, Sweden, Finland, Lithuania, Latvia, Estonia):
     - embassy/consulate evacuation or citizen-departure advisory
     - Russian diplomats leaving
-    - suspected document destruction at Russian mission
+    - suspected document destruction at a Russian mission
     - mobilization or martial law debated, announced, or declared
 
     Any NATO member:
     - missile attack
-    - troop buildup near NATO border
+    - troop buildup near a NATO border
     - border closure or border controls
 
     Other:
@@ -51,10 +49,11 @@ classification:
     - major factual Russia–NATO provocation
     - Putin address justifying NATO aggression to Russians
 
-    justification: English summary if yes; one short sentence if no.
+    Unrelated (wildlife, sports, crime, weather) is no.
+    Example: {"result":"no","justification":"Wildlife sighting, not a threat."}
 
-    If message starts with "Everything is fine, it's just a test.",
-    return {"result":"yes","justification":"News correctly recognized as a system test."}
+    If the message starts with "Everything is fine, it's just a test.":
+    {"result":"yes","justification":"News correctly recognized as a system test."}
 
 rss:
   urls:

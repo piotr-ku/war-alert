@@ -123,15 +123,53 @@ def _parse_classification(
         }, ensure_ascii=False))
         return "invalid"
 
-    if parsed["result"] == "no":
+    result = parsed["result"]
+    justification = parsed["justification"]
+
+    # Both fields must be strings; result is only yes or no.
+    if not isinstance(result, str) or not isinstance(justification, str):
+        logger.error(json.dumps({
+            "time": time.strftime(
+                "%Y-%m-%dT%H:%M:%S",
+                time.localtime(),
+            ),
+            "provider": provider,
+            "error": "result or justification is not a string",
+            **_content_log_fields(content),
+        }, ensure_ascii=False))
+        return "invalid"
+
+    result_norm = result.strip().lower()
+    justification_text = justification.strip()
+
+    # Reject swapped or empty fields. justification is a sentence,
+    # never the words yes or no.
+    if (
+        result_norm not in ("yes", "no")
+        or justification_text.lower() in ("", "yes", "no")
+    ):
+        logger.error(json.dumps({
+            "time": time.strftime(
+                "%Y-%m-%dT%H:%M:%S",
+                time.localtime(),
+            ),
+            "provider": provider,
+            "error": "invalid result or justification",
+            "result": result,
+            "justification": justification,
+            **_content_log_fields(content),
+        }, ensure_ascii=False))
+        return "invalid"
+
+    if result_norm == "no":
         logger.info(json.dumps({
             "time": time.strftime(
                 "%Y-%m-%dT%H:%M:%S",
                 time.localtime(),
             ),
             "provider": provider,
-            "result": parsed["result"],
-            "justification": parsed["justification"],
+            "result": result_norm,
+            "justification": justification_text,
             **_content_log_fields(content),
         }, ensure_ascii=False))
         return None
@@ -142,12 +180,12 @@ def _parse_classification(
             time.localtime(),
         ),
         "provider": provider,
-        "result": parsed["result"],
-        "justification": parsed["justification"],
+        "result": result_norm,
+        "justification": justification_text,
         **_content_log_fields(content),
     }, ensure_ascii=False))
 
-    content.description = parsed["justification"]
+    content.description = justification_text
     return content
 
 
