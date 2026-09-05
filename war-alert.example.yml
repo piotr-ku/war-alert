@@ -1,0 +1,191 @@
+# Copy to one of the config search paths and edit frequently changed
+# options:
+#
+#   /etc/war-alert.yml
+#   ~/.config/war-alert/war-alert.yml
+#   ./war-alert.yml
+#
+# Example for local development:
+#   cp war-alert.example.yml war-alert.yml
+#
+# war-alert reloads the config before each poll cycle (and on each webhook
+# request) without restarting the process.
+
+# Seconds between polling cycles across all enabled sources.
+sleep_delay: 600
+
+classification:
+  # Provider name or comma-separated fallback chain: openai, openrouter.
+  processor: openai
+  openai_model: gpt-4o-mini
+  openrouter_model: openai/gpt-4o-mini
+  # Must contain a <content> placeholder replaced with item text.
+  prompt: |
+    Does the news limited by "-----" describe any of the following scenarios?
+
+    - evacuation of any consulate or embassy in NATO countries threatened by conflict
+    - recommendation from a consulate or embassy of any country for its citizens to leave any NATO country threatened by conflict
+    - Russian diplomats leaving any NATO country threatened by conflict
+    - suspicion of document destruction in a Russian embassy or consulate in any NATO country threatened by conflict
+    - debate on announcing mobilization in any NATO country threatened by conflict
+    - debate on introducing martial law in any NATO country threatened by conflict
+    - announcement of mobilization in any NATO country threatened by conflict
+    - declaration of martial law in any NATO country threatened by conflict
+    - missile attack on any NATO country
+    - use of nuclear weapons anywhere in the world
+    - information about troop concentration near the border of any NATO country
+    - information from the services of any NATO country about a planned significant provocation by Russia
+    - information about a significant provocation by Russia or NATO
+    - closure of the border by any NATO country
+    - introduction of border controls by any NATO country
+    - Putin's address that could be interpreted as justifying aggression against NATO countries to the Russian nation
+
+    Assume that NATO countries threatened by conflict are: Poland, Sweden, Finland, Lithuania, Latvia, Estonia.
+
+    -----
+    <content>
+    -----
+
+    Respond in JSON format:
+
+    {"result": "<yes|no>", "justification": "<justification>"}
+
+    The "result" field should be set to "no" if the news concerns analyses, predictions, forecasts, potential events, or political commentary rather than facts.
+
+    If the news fits the described scenarios, the <justification> placeholder should contain a summary of the news in English. If it does not fit, the justification should be given in one short sentence.
+
+    Additionally, if the news is started by "Everything is fine, it's just a test.",
+    respond with:
+
+    {"result": "yes", "justification": "News correctly recognized as a system test."}
+
+rss:
+  urls:
+    - https://www.rp.pl/rss_main
+
+twitter:
+  usernames: []
+
+telegram:
+  channels:
+    - username: AMK_Mapping
+      limit: 20
+      filters:
+        # Poland / Polish
+        - '(?i)\bpolands?\b'
+        - '(?i)\bpolish\b'
+        - '(?i)\bpoles\b'
+        - '(?i)\bpolsk'
+        - '(?i)polish (army|air ?force|navy|airspace|border|territory)'
+        # Largest cities (capitals + >200k)
+        - '(?i)\bwarsaw\b'
+        - '(?i)\bwarszaw'
+        - '(?i)\bkrak[oó]w\b'
+        - '(?i)\bcracow\b'
+        - '(?i)\bwroc[lł]aw\b'
+        - '(?i)\b[lł][oó]d[zź]\b'
+        - '(?i)\bpozna[nń]\b'
+        - '(?i)\bgda[nń]sk\b'
+        - '(?i)\bgdynia\b'
+        - '(?i)\bszczecin\b'
+        - '(?i)\bbydgoszcz\b'
+        - '(?i)\btoru[nń]\b'
+        - '(?i)\blublin\b'
+        - '(?i)\bbia[lł]ystok\b'
+        - '(?i)\bkatowice\b'
+        - '(?i)\bcze[sś]tochow'
+        - '(?i)\bradom\b'
+        - '(?i)\bkielce\b'
+        - '(?i)\brzeszow'
+        - '(?i)\bjasionka\b'
+        - '(?i)\bolsztyn\b'
+        - '(?i)\bopole\b'
+        - '(?i)zielona g[oó]ra'
+        - '(?i)\bgorz[oó]w\b'
+        - '(?i)bielsko'
+        # Suwałki corridor
+        - '(?i)suwa[lł]k'
+        - '(?i)\bsejny\b'
+        - '(?i)august[oó]w'
+        - '(?i)\be[lł]k\b'
+        - '(?i)go[lł]dap'
+        - '(?i)olecko'
+        # Kaliningrad / Warmia-Mazury
+        - '(?i)\bkaliningrad\b'
+        - '(?i)kr[oó]lewiec'
+        - '(?i)braniewo'
+        - '(?i)bartoszyce'
+        - '(?i)k[eę]trzyn'
+        - '(?i)w[eę]gorzewo'
+        - '(?i)gi[zż]ycko'
+        - '(?i)elbl[aą]g'
+        - '(?i)warmia'
+        - '(?i)mazur'
+        # Belarus border
+        - '(?i)podlas'
+        - '(?i)ku[zź]nica'
+        - '(?i)terespol'
+        - '(?i)bia[lł]a podlaska'
+        - '(?i)hajn[oó]wka'
+        - '(?i)lubelsk'
+        - '(?i)\bche[lł]m\b'
+        - '(?i)w[lł]odawa'
+        - '(?i)bia[lł]owie[zż]'
+        # Military logistics / bases
+        - '(?i)przemys[lł]'
+        - '(?i)podkarpac'
+        - '(?i)redzikowo'
+        - '(?i)powidz'
+        - '(?i)[zż]aga[nń]'
+        - '(?i)orzysz'
+        - '(?i)bemowo piskie'
+
+notam:
+  locations:
+    - EPWW
+    - EPWA
+  qcodes:
+    - QATLC
+    - QRTCA
+    - QRTCL
+    - QRRCA
+    - QRPCA
+    - QRMXX
+  passthrough_qcodes:
+    - QATLC
+    - QRPCA
+  text_exclude:
+    - PJE
+    - PARAGLID
+    - UAV FLT
+    - UAS FLT
+    - UNMANNED AERIAL VEHICLES FLIGHTS
+    - AIRSPACE USE PLAN
+    - AUP
+    - AIP SUP
+    - AREA MANAGER
+    - TEMPORARY RESERVED
+    - TEMPORARY RESTRICTED
+    - AVBL FOR REQUEST
+    - TEMPORARY AVBL
+  # Optional FAA API filter: INTERNATIONAL, DOMESTIC, MILITARY,
+  # LOCAL_MILITARY, or FDC. Omit for all active NOTAMs.
+  # classification: INTERNATIONAL
+
+alertsua:
+  # Omit filter_types or filter_regions to include all active alerts.
+  # filter_types:
+  #   - air_raid
+  #   - chemical
+  #   - nuclear
+  # filter_regions:
+  #   - Львівська область
+  #   - Волинська область
+
+ntfy:
+  priority: high
+  # tags:
+  #   - warning
+
+email:
+  to: []

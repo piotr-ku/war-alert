@@ -4,6 +4,7 @@ import os
 import unittest
 from unittest.mock import Mock, patch
 
+import config
 from sources import notam as notam_module
 from sources.notam import SourceNotam
 
@@ -44,15 +45,13 @@ def _fields(number, qcode, text, location="EPWW"):
 
 class TestNotamFetchLogging(unittest.TestCase):
     def setUp(self):
-        self.env_keys = (
-            "NOTAM_LOCATIONS",
-            "NOTAM_QCODES",
-            "NOTAM_PASSTHROUGH_QCODES",
-            "NOTAM_TEXT_EXCLUDE",
-            "NOTAM_CLASSIFICATION",
-        )
+        self.env_keys = ("NOTAM_CLASSIFICATION",)
         self.env_backup = {key: os.environ.get(key) for key in self.env_keys}
-        os.environ["NOTAM_LOCATIONS"] = "EPWW"
+        config.apply({
+            "notam": {
+                "locations": ["EPWW"],
+            },
+        })
         os.environ.pop("NOTAM_CLASSIFICATION", None)
         notam_module._logged_source_config = False
 
@@ -63,6 +62,7 @@ class TestNotamFetchLogging(unittest.TestCase):
         self.logger.propagate = False
 
     def tearDown(self):
+        config.reset()
         for key, value in self.env_backup.items():
             if value is None:
                 os.environ.pop(key, None)

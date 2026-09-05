@@ -3,7 +3,10 @@
     War-alert main entry point: poll sources and send notifications.
 
     Poll loop: all_sources() → fetch → process_and_notify() per item →
-    sleep SLEEP_DELAY (default 600 s).
+    sleep (default 600 s, from war-alert.yml).
+
+    Secrets in .env; frequently changed options in war-alert.yml (reloaded
+    each iteration). See config.py and war-alert.example.yml.
 
     process_and_notify runs source processors in order, then all configured
     notifiers. Returns True when at least one notifier succeeds. See
@@ -26,6 +29,8 @@ import os
 import signal
 import sys
 import time
+
+import config
 
 from notifiers.base import Notifier
 from notifiers.email import NotifierEmail
@@ -129,17 +134,14 @@ def all_sources(logger: logging.Logger) -> list[Source]:
         and os.environ.get("FAA_NMS_CLIENT_SECRET") != "":
         all_sources.append(SourceNotam(logger))
 
-    # Add the RSS sources if the URLs are set
-    if os.environ.get("RSS_URLS") is not None \
-        and os.environ.get("RSS_URLS") != "":
-        for url in os.environ.get("RSS_URLS").split():
-            all_sources.append(SourceRSS(url, logger))
+    # Add the RSS sources if URLs are configured
+    for url in config.rss_urls():
+        all_sources.append(SourceRSS(url, logger))
 
     # Add the TwitterAPI source if the key and usernames are set
     if os.environ.get("TWITTERAPI_KEY") is not None \
         and os.environ.get("TWITTERAPI_KEY") != "" \
-        and os.environ.get("TWITTERAPI_USERNAMES") is not None \
-        and os.environ.get("TWITTERAPI_USERNAMES") != "":
+        and config.twitter_usernames():
         all_sources.append(SourceTwitterAPI(logger))
 
     # Add the Telegram channel source if API credentials and channels are set
@@ -169,12 +171,11 @@ def all_notifiers(logger: logging.Logger) -> list[Notifier]:
         and os.environ.get("NTFY_TOPIC") != "":
         all_notifiers.append(NotifierNtfy())
 
-    # Add the Email notifier if the token is set
+    # Add the Email notifier if sender and recipients are set
     if os.environ.get("EMAIL_FROM") is not None \
         and os.environ.get("EMAIL_FROM") != "" \
-        and os.environ.get("EMAIL_TO") is not None \
-        and os.environ.get("EMAIL_TO") != "":
-        for email in os.environ.get("EMAIL_TO").split():
+        and config.email_to():
+        for email in config.email_to():
             all_notifiers.append(NotifierEmail(email))
 
     return all_notifiers
@@ -198,12 +199,13 @@ if __name__ == "__main__":
     logger = logging.getLogger(__name__)
     logger.addHandler(logging.StreamHandler(sys.stdout))
 
-    # Load the .env file
+    # Load the .env file and YAML config
     dotenv.load_dotenv()
     logger.setLevel(_log_level())
+    config.reload(logger, required=True)
 
     try:
-        parse_processor_names(os.environ.get("CLASSIFICATION_PROCESSOR"))
+        config.classification_processor()
     except ValueError as e:
         logger.error(json.dumps({
             "time": time.strftime(
@@ -233,6 +235,8 @@ if __name__ == "__main__":
     # Infinite loop
     while True:
         try:
+            config.reload(logger)
+
             # Get sources
             sources = all_sources(logger)
 
@@ -251,4 +255,4 @@ if __name__ == "__main__":
             continue
 
         # Sleep for the specified delay
-        time.sleep(int(os.environ.get("SLEEP_DELAY", 600)))
+        time.sleep(config.sleep_delay())

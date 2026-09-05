@@ -5,8 +5,10 @@
         NTFY_TOPIC — required; topic name acts as a password on ntfy.sh.
         NTFY_URL — server base URL (default https://ntfy.sh).
         NTFY_TOKEN — Bearer token for reserved topics.
-        NTFY_PRIORITY — Priority header (default high).
-        NTFY_TAGS — optional Tags header.
+
+    Options in war-alert.yml under ntfy:
+        priority — Priority header (default high).
+        tags — optional Tags header.
 
     Sends body: description + link. Headers: Title, Priority, Click (when
     link set). Non-latin-1 header values are RFC 2047 encoded for requests.
@@ -18,6 +20,8 @@ import os
 import logging
 import requests
 import time
+
+import config
 from notifiers.base import Notifier
 from processors.base import Content
 
@@ -39,10 +43,7 @@ def _priority() -> str:
     """
         Return the ntfy message priority header value.
     """
-    raw = os.environ.get("NTFY_PRIORITY")
-    if raw is None or raw.strip() == "":
-        return DEFAULT_PRIORITY
-    return raw.strip()
+    return config.ntfy_priority()
 
 
 def _http_header(value: str) -> str:
@@ -83,7 +84,7 @@ class NotifierNtfy(Notifier):
         if content.link:
             headers["Click"] = _http_header(content.link)
 
-        tags = os.environ.get("NTFY_TAGS")
+        tags = config.ntfy_tags_raw()
         if tags is not None and tags.strip() != "":
             headers["Tags"] = _http_header(tags.strip())
 

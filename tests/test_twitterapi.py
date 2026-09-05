@@ -6,6 +6,7 @@ import sys
 import unittest
 from unittest.mock import Mock, patch
 
+import config
 from processors.classify import news_processors
 from sources.twitterapi import SourceTwitterAPI, Tweet
 
@@ -58,15 +59,17 @@ class TestSourceTwitterAPI(unittest.TestCase):
     def setUp(self):
         self.env_keys = (
             "TWITTERAPI_KEY",
-            "TWITTERAPI_USERNAMES",
             "TWITTERAPI_BASE_URL",
         )
         self.env_backup = {key: os.environ.get(key) for key in self.env_keys}
         os.environ["TWITTERAPI_KEY"] = "test-key"
-        os.environ["TWITTERAPI_USERNAMES"] = "DefenceU"
+        config.apply({
+            "twitter": {"usernames": ["DefenceU"]},
+        })
         self.logger = logging.getLogger("test_twitterapi")
 
     def tearDown(self):
+        config.reset()
         for key, value in self.env_backup.items():
             if value is None:
                 os.environ.pop(key, None)
@@ -127,7 +130,9 @@ class TestSourceTwitterAPI(unittest.TestCase):
                 return bad_response
             return good_response
 
-        os.environ["TWITTERAPI_USERNAMES"] = "BadUser GoodUser"
+        config.apply({
+            "twitter": {"usernames": ["BadUser", "GoodUser"]},
+        })
 
         with patch("sources.twitterapi.requests.get", side_effect=side_effect):
             result = SourceTwitterAPI(self.logger).fetch(self.logger)
@@ -198,8 +203,6 @@ class TestAllSourcesTwitterAPI(unittest.TestCase):
     def setUp(self):
         self.env_keys = (
             "TWITTERAPI_KEY",
-            "TWITTERAPI_USERNAMES",
-            "RSS_URLS",
             "ALERTSUA_TOKEN",
             "FAA_NMS_CLIENT_ID",
             "FAA_NMS_CLIENT_SECRET",
@@ -207,9 +210,11 @@ class TestAllSourcesTwitterAPI(unittest.TestCase):
         self.env_backup = {key: os.environ.get(key) for key in self.env_keys}
         for key in self.env_keys:
             os.environ.pop(key, None)
+        config.reset()
         self.logger = logging.getLogger("test_all_sources_twitterapi")
 
     def tearDown(self):
+        config.reset()
         for key, value in self.env_backup.items():
             if value is None:
                 os.environ.pop(key, None)
@@ -218,7 +223,9 @@ class TestAllSourcesTwitterAPI(unittest.TestCase):
 
     def test_all_sources_adds_twitterapi_when_configured(self):
         os.environ["TWITTERAPI_KEY"] = "test-key"
-        os.environ["TWITTERAPI_USERNAMES"] = "DefenceU MON_GOV_PL"
+        config.apply({
+            "twitter": {"usernames": ["DefenceU", "MON_GOV_PL"]},
+        })
 
         sources = self.war_alert.all_sources(self.logger)
 
@@ -233,7 +240,9 @@ class TestAllSourcesTwitterAPI(unittest.TestCase):
         self.assertEqual(sources, [])
 
     def test_all_sources_skips_twitterapi_without_key(self):
-        os.environ["TWITTERAPI_USERNAMES"] = "DefenceU"
+        config.apply({
+            "twitter": {"usernames": ["DefenceU"]},
+        })
 
         sources = self.war_alert.all_sources(self.logger)
 

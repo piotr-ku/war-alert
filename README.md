@@ -10,7 +10,8 @@ ntfy, Telegram, or email.
 git clone <repository-url>
 cd war-alert
 cp .env.example .env
-# Edit .env — enable only the sources and notifiers you need
+cp war-alert.example.yml war-alert.yml
+# Edit .env (secrets) and war-alert.yml (sources, filters, prompt)
 docker compose up -d
 ```
 
@@ -18,26 +19,38 @@ Without Docker:
 
 ```bash
 cp .env.example .env
-# Edit .env and prompt.txt
+cp war-alert.example.yml war-alert.yml
+# Edit .env and war-alert.yml
 ./war-alert.sh
 ```
 
-All configuration is via environment variables. See `.env.example` for the
-full list with defaults and comments.
+Secrets and infrastructure live in `.env`. Frequently changed options
+(sources, filters, LLM prompt) live in `war-alert.yml`. The script
+searches for the config file in this order:
+
+1. `/etc/war-alert.yml`
+2. `~/.config/war-alert/war-alert.yml`
+3. `./war-alert.yml`
+
+It reloads the config before each poll cycle and on each webhook request,
+so you can edit it without restarting.
+
+See `.env.example` and `war-alert.example.yml` for the full list with
+defaults and comments.
 
 ## What it monitors
 
 | Source | Enable with |
 |--------|-------------|
-| RSS feeds | `RSS_URLS` |
-| Twitter/X | `TWITTERAPI_KEY`, `TWITTERAPI_USERNAMES` |
-| Telegram channels | `TELEGRAM_API_ID`, `TELEGRAM_API_HASH`, `telegram.yaml` |
-| FAA NOTAMs (Polish airspace) | `FAA_NMS_CLIENT_ID`, `FAA_NMS_CLIENT_SECRET` |
-| Alerts.in.ua | `ALERTSUA_TOKEN` |
+| RSS feeds | `rss.urls` in `war-alert.yml` |
+| Twitter/X | `TWITTERAPI_KEY` in `.env` and `twitter.usernames` in `war-alert.yml` |
+| Telegram channels | `TELEGRAM_API_ID`, `TELEGRAM_API_HASH` in `.env` and `telegram.channels` in `war-alert.yml` |
+| FAA NOTAMs (Polish airspace) | `FAA_NMS_CLIENT_ID`, `FAA_NMS_CLIENT_SECRET` in `.env` |
+| Alerts.in.ua | `ALERTSUA_TOKEN` in `.env` |
 
 RSS, Twitter, and Telegram posts go through LLM classification
-(`CLASSIFICATION_PROCESSOR`, `PROMPT_FILE`). NOTAMs and webhook alerts skip
-the classifier.
+(`classification.processor` and `classification.prompt` in `war-alert.yml`).
+NOTAMs and webhook alerts skip the classifier.
 
 ## Notifications
 
@@ -45,10 +58,10 @@ Configure any combination:
 
 | Notifier | Enable with |
 |----------|-------------|
-| Pushover | `PUSHOVER_TOKEN`, `PUSHOVER_USER` |
-| ntfy | `NTFY_TOPIC` |
-| Telegram (bot) | `TELEGRAM_BOT_TOKEN`, `TELEGRAM_CHANNEL_ID` |
-| Email | `EMAIL_FROM`, `EMAIL_TO`, SMTP settings |
+| Pushover | `PUSHOVER_TOKEN`, `PUSHOVER_USER` in `.env` |
+| ntfy | `NTFY_TOPIC` in `.env`; `ntfy.priority` / `ntfy.tags` in `war-alert.yml` |
+| Telegram (bot) | `TELEGRAM_BOT_TOKEN`, `TELEGRAM_CHANNEL_ID` in `.env` |
+| Email | `EMAIL_FROM`, SMTP settings in `.env`; `email.to` in `war-alert.yml` |
 
 The notification bot (`TELEGRAM_BOT_TOKEN`) is separate from Telegram channel
 monitoring (Telethon user account).
@@ -57,7 +70,8 @@ monitoring (Telethon user account).
 
 1. Get `TELEGRAM_API_ID` and `TELEGRAM_API_HASH` from
    [my.telegram.org](https://my.telegram.org).
-2. Edit `telegram.yaml` — list channels and optional regex filters.
+2. Edit `telegram.channels` in `war-alert.yml` — list channels and optional
+   regex filters.
 3. Log in once (stop war-alert first):
 
    ```bash

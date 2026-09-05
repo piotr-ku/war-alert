@@ -4,6 +4,7 @@ import os
 import unittest
 from unittest.mock import MagicMock, patch
 
+import config
 from notifiers.ntfy import NotifierNtfy
 from sources.rss import News
 
@@ -18,13 +19,20 @@ class TestNotifierNtfy(unittest.TestCase):
             "https://example.com/notam",
         )
 
+    def tearDown(self):
+        config.reset()
+
     @patch.dict(os.environ, {
         "NTFY_TOPIC": "war-alerts-secret",
         "NTFY_TOKEN": "tk_test_token",
-        "NTFY_TAGS": "warning,skull",
     }, clear=False)
     @patch("notifiers.ntfy.requests.post")
     def test_successful_send_includes_headers(self, mock_post):
+        config.apply({
+            "ntfy": {
+                "tags": ["warning", "skull"],
+            },
+        })
         mock_response = MagicMock()
         mock_response.status_code = 200
         mock_post.return_value = mock_response

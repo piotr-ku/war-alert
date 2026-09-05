@@ -1,15 +1,14 @@
 """
     Configurable LLM classification processor for war-alert.
 
-    Environment variables:
-        CLASSIFICATION_PROCESSOR — provider name or comma-separated fallback
-            chain (default openai). Supported: openai, openrouter.
-            Example: openrouter,openai tries OpenRouter first, then OpenAI.
-        OPENAI_API_KEY, OPENAI_MODEL — OpenAI provider.
-        OPENROUTER_API_KEY, OPENROUTER_MODEL, OPENROUTER_BASE_URL —
-            OpenRouter provider.
-        PROMPT_FILE — template with <content> placeholder (default
-            ./prompt.txt).
+    Classification settings live in war-alert.yml under classification:
+        processor — provider name or comma-separated fallback chain
+            (default openai). Supported: openai, openrouter.
+        openai_model, openrouter_model — model names per provider.
+        prompt — template with <content> placeholder.
+
+    API keys stay in .env: OPENAI_API_KEY, OPENROUTER_API_KEY,
+    OPENROUTER_BASE_URL.
 
     Fallback rules:
         The next provider runs only when the previous one fails (API error,
@@ -22,9 +21,10 @@
 
 import json
 import logging
-import os
 import time
 from collections.abc import Callable
+
+import config
 
 from processors.base import Content, Processor
 from processors.openai import query as openai_query
@@ -67,9 +67,7 @@ def get_prompt(content: str) -> str:
     """
         Return the classification prompt with content substituted.
     """
-    prompt_file = os.environ.get("PROMPT_FILE", "./prompt.txt")
-    with open(prompt_file, "r") as file:
-        return file.read().replace("<content>", content)
+    return config.classification_prompt().replace("<content>", content)
 
 
 def _content_log_fields(content: Content) -> dict:
@@ -160,9 +158,7 @@ class ProcessorClassification(Processor):
             Initialize with an ordered provider list.
         """
         if providers is None:
-            providers = parse_processor_names(
-                os.environ.get("CLASSIFICATION_PROCESSOR"),
-            )
+            providers = config.classification_processor()
         self.providers = providers
 
     def process(

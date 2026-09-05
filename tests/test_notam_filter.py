@@ -1,6 +1,7 @@
 import os
 import unittest
 
+import config
 from sources.notam import (
     DEFAULT_TEXT_EXCLUDE,
     _exclude_patterns,
@@ -236,17 +237,16 @@ class TestNotamExcludeReason(unittest.TestCase):
 
 class TestNotamFilterEnv(unittest.TestCase):
     def tearDown(self):
-        for key in ("NOTAM_PASSTHROUGH_QCODES", "NOTAM_TEXT_EXCLUDE"):
-            os.environ.pop(key, None)
+        config.reset()
 
     def test_empty_passthrough_disables_passthrough(self):
-        os.environ["NOTAM_PASSTHROUGH_QCODES"] = ""
+        config.apply({"notam": {"passthrough_qcodes": []}})
         self.assertEqual(_passthrough_qcodes(), [])
         self.assertFalse(_is_passthrough("QATLC"))
         self.assertFalse(_is_passthrough("QRPCA"))
 
     def test_empty_exclude_disables_text_filter(self):
-        os.environ["NOTAM_TEXT_EXCLUDE"] = ""
+        config.apply({"notam": {"text_exclude": []}})
         self.assertEqual(_exclude_patterns(), [])
         text = "TEMPORARY RESERVED AREA EPTR1022 - PJE."
         self.assertIsNone(_exclude_reason(text, _exclude_patterns()))

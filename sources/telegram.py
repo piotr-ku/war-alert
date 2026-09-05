@@ -6,12 +6,11 @@
 
     Environment variables:
         TELEGRAM_API_ID, TELEGRAM_API_HASH — from my.telegram.org.
-        TELEGRAM_CHANNELS_FILE — path to YAML (default ./telegram.yaml).
         TELEGRAM_SESSION_FILE — file session (default telegram.session).
         TELEGRAM_SESSION_STRING — optional in-memory session for Docker.
         TELEGRAM_PHONE — optional phone for telegram_login.py.
 
-    Channel config (telegram.yaml):
+    Channel config (war-alert.yml under telegram.channels):
         channels:
           - username: AMK_Mapping
             limit: 20
@@ -46,10 +45,9 @@ import re
 import sqlite3
 import time
 from dataclasses import dataclass
-from pathlib import Path
 from typing import Any
 
-import yaml
+import config
 from telethon.errors import SecurityError
 from telethon.sync import TelegramClient
 from telethon.sessions import StringSession
@@ -58,7 +56,6 @@ from processors.base import Content, Processor
 from processors.classify import news_processors
 from sources.base import Source
 
-DEFAULT_CHANNELS_FILE = "./telegram.yaml"
 DEFAULT_SESSION_FILE = "telegram.session"
 DEFAULT_CHANNEL_LIMIT = 20
 
@@ -117,13 +114,6 @@ def _api_hash() -> str:
     return os.environ.get("TELEGRAM_API_HASH", "").strip()
 
 
-def _channels_file() -> str:
-    return os.environ.get(
-        "TELEGRAM_CHANNELS_FILE",
-        DEFAULT_CHANNELS_FILE,
-    ).strip()
-
-
 def _session_file() -> str:
     return os.environ.get(
         "TELEGRAM_SESSION_FILE",
@@ -166,41 +156,10 @@ def _compile_filters(
 
 def load_channel_configs(logger: logging.Logger) -> list[ChannelConfig]:
     """
-        Load and validate channel configs from the YAML channels file.
+        Load and validate channel configs from war-alert.yml.
     """
-    path = Path(_channels_file())
-    if not path.is_file():
-        _log(logger, {
-            "msg": "Telegram channels file not found",
-            "path": str(path),
-        }, level=logging.ERROR)
-        return []
-
-    # Load YAML from disk
-    try:
-        with path.open("r", encoding="utf-8") as handle:
-            payload = yaml.safe_load(handle)
-    except Exception as exc:
-        _log(logger, {
-            "msg": "Error loading Telegram channels file",
-            "path": str(path),
-            "exception": str(exc),
-        }, level=logging.ERROR)
-        return []
-
-    if not isinstance(payload, dict):
-        _log(logger, {
-            "msg": "Telegram channels file must contain a mapping",
-            "path": str(path),
-        }, level=logging.ERROR)
-        return []
-
-    raw_channels = payload.get("channels")
-    if not isinstance(raw_channels, list):
-        _log(logger, {
-            "msg": "Telegram channels file must contain a channels list",
-            "path": str(path),
-        }, level=logging.ERROR)
+    raw_channels = config.telegram_channels_raw()
+    if not raw_channels:
         return []
 
     channels: list[ChannelConfig] = []
@@ -464,7 +423,6 @@ class SourceTelegram(Source):
         if not _logged_source_config:
             _log(self.logger, {
                 "msg": "Telegram source configured",
-                "channels_file": _channels_file(),
                 "channels": [
                     {
                         "username": channel.username,

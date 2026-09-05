@@ -4,10 +4,11 @@
 
 import json
 import logging
-import os
 import time
 
 import openai
+
+import config
 
 
 def query(prompt: str, logger: logging.Logger) -> str:
@@ -17,7 +18,7 @@ def query(prompt: str, logger: logging.Logger) -> str:
     try:
         client = openai.OpenAI()
         completion = client.chat.completions.create(
-            model=os.environ.get("OPENAI_MODEL", "gpt-4o-mini"),
+            model=config.openai_model(),
             messages=[
                 {
                     "role": "user",

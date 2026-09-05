@@ -9,6 +9,8 @@ import time
 
 import openai
 
+import config
+
 DEFAULT_BASE_URL = "https://openrouter.ai/api/v1"
 
 
@@ -38,10 +40,7 @@ def query(prompt: str, logger: logging.Logger) -> str:
             api_key=api_key,
         )
         completion = client.chat.completions.create(
-            model=os.environ.get(
-                "OPENROUTER_MODEL",
-                "openai/gpt-4o-mini",
-            ),
+            model=config.openrouter_model(),
             messages=[
                 {
                     "role": "user",

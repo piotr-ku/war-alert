@@ -29,6 +29,8 @@ from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from threading import Thread
 from typing import Callable
 
+import config
+
 from processors.base import Content, Processor
 from processors.classify import news_processors
 from processors.unique import ProcessorUnique
@@ -137,6 +139,8 @@ def start_http_server(
             """
                 Authenticate, parse, and process one webhook request.
             """
+            config.reload(app_logger)
+
             if not self._check_auth():
                 app_logger.warning(json.dumps({
                     "time": time.strftime(

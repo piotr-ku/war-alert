@@ -5,17 +5,15 @@
         FAA_NMS_CLIENT_ID, FAA_NMS_CLIENT_SECRET — enable this source.
         FAA_NMS_BASE_URL — API base (default production NMS API).
         FAA_NMS_AUTH_URL — OAuth token URL (default production).
-        NOTAM_LOCATIONS — space-separated ICAO codes (default EPWW EPWA).
-        NOTAM_QCODES — comma-separated Q-code prefixes to match.
-        NOTAM_PASSTHROUGH_QCODES — always alert, skip text filter
-            (default QATLC,QRPCA for TMA/CTR and Ukraine NPZ notices).
-        NOTAM_TEXT_EXCLUDE — comma substrings; routine TRA/PJE/UAV/AUP
-            noise is dropped when matched Q-code is not passthrough.
-            Set to empty to disable text filtering.
-        NOTAM_CLASSIFICATION — optional API filter: INTERNATIONAL,
-            DOMESTIC, MILITARY, LOCAL_MILITARY, or FDC. Unset = all active.
         NOTAM_REQUEST_DELAY — seconds between location queries (default 1.1;
             staging API enforces ~1 req/s per client).
+
+    Filter options in war-alert.yml under notam:
+        locations — ICAO codes (default EPWW EPWA).
+        qcodes — Q-code prefixes to match.
+        passthrough_qcodes — always alert, skip text filter.
+        text_exclude — substrings that drop routine noise.
+        classification — optional FAA API filter.
 
     Filtering pipeline:
         1. Q-code must match NOTAM_QCODES.
@@ -56,6 +54,7 @@ from typing import Any
 
 import requests
 
+import config
 from processors.base import Content, Processor
 from processors.unique import ProcessorUnique
 from sources.base import Source
@@ -336,21 +335,16 @@ def _parse_notam_fields(feature: dict) -> dict | None:
 
 
 def _locations() -> list[str]:
-    raw = os.environ.get("NOTAM_LOCATIONS", DEFAULT_LOCATIONS)
-    return [
-        location.strip().upper()
-        for location in raw.split()
-        if location.strip()
-    ]
+    return config.notam_locations()
 
 
 def _qcode_prefixes() -> list[str]:
-    raw = os.environ.get("NOTAM_QCODES", DEFAULT_QCODES)
+    raw = config.notam_qcodes()
     return _parse_qcode_prefixes(raw)
 
 
 def _passthrough_qcodes() -> list[str]:
-    raw = os.environ.get("NOTAM_PASSTHROUGH_QCODES")
+    raw = config.notam_passthrough_qcodes_raw()
     if raw is None:
         return _parse_qcode_prefixes(DEFAULT_PASSTHROUGH_QCODES)
     if raw.strip() == "":
@@ -359,7 +353,7 @@ def _passthrough_qcodes() -> list[str]:
 
 
 def _exclude_patterns() -> list[str]:
-    raw = os.environ.get("NOTAM_TEXT_EXCLUDE")
+    raw = config.notam_text_exclude_raw()
     if raw is None:
         return [
             p.strip().upper()
@@ -404,13 +398,7 @@ def _exclude_reason(
 
 
 def _classification() -> str | None:
-    raw = os.environ.get("NOTAM_CLASSIFICATION")
-    if raw is None:
-        return None
-    value = raw.strip().upper()
-    if value == "":
-        return None
-    return value
+    return config.notam_classification()
 
 
 def _request_delay() -> float:

@@ -3,8 +3,9 @@
 
     Environment variables:
         TWITTERAPI_KEY — API key from twitterapi.io dashboard.
-        TWITTERAPI_USERNAMES — space-separated handles (@ optional).
         TWITTERAPI_BASE_URL — override API host (default api.twitterapi.io).
+
+    Usernames are listed in war-alert.yml under twitter.usernames.
 
     Each poll calls GET /twitter/user/last_tweets per handle (first page,
     up to 20 tweets, replies excluded). Tweets pass through
@@ -25,6 +26,7 @@ from typing import Any
 
 import requests
 
+import config
 from processors.base import Content, Processor
 from processors.classify import news_processors
 from sources.base import Source
@@ -62,14 +64,7 @@ def _base_url() -> str:
 
 
 def _usernames() -> list[str]:
-    raw = os.environ.get("TWITTERAPI_USERNAMES", "")
-    if raw is None or raw.strip() == "":
-        return []
-    return [
-        username.lstrip("@")
-        for username in raw.split()
-        if username.strip()
-    ]
+    return config.twitter_usernames()
 
 
 def _api_key() -> str:

@@ -3,12 +3,11 @@ import logging
 import os
 import sqlite3
 import sys
-import tempfile
-import textwrap
 import unittest
 from types import SimpleNamespace
 from unittest.mock import Mock, patch
 
+import config
 from processors.classify import news_processors
 from sources.telegram import (
     ChannelConfig,
@@ -46,41 +45,31 @@ def _message(message_id: int, text: str) -> SimpleNamespace:
 class TestTelegramFilters(unittest.TestCase):
     def setUp(self):
         self.logger = logging.getLogger("test_telegram_filters")
-        self.env_backup = {
-            key: os.environ.get(key)
-            for key in ("TELEGRAM_CHANNELS_FILE",)
-        }
 
     def tearDown(self):
-        for key, value in self.env_backup.items():
-            if value is None:
-                os.environ.pop(key, None)
-            else:
-                os.environ[key] = value
+        config.reset()
 
     def test_load_channel_configs_compiles_filters(self):
-        with tempfile.NamedTemporaryFile(
-            "w", suffix=".yaml", delete=False,
-        ) as handle:
-            handle.write(textwrap.dedent("""
-                channels:
-                  - username: AMK_Mapping
-                    limit: 5
-                    filters:
-                      - '(?i)\\bpoland\\b'
-                      - '(?i)\\bjasionka\\b'
-            """))
-            path = handle.name
-
-        os.environ["TELEGRAM_CHANNELS_FILE"] = path
+        config.apply({
+            "telegram": {
+                "channels": [
+                    {
+                        "username": "AMK_Mapping",
+                        "limit": 5,
+                        "filters": [
+                            r"(?i)\bpoland\b",
+                            r"(?i)\bjasionka\b",
+                        ],
+                    },
+                ],
+            },
+        })
         channels = load_channel_configs(self.logger)
 
         self.assertEqual(len(channels), 1)
         self.assertEqual(channels[0].username, "AMK_Mapping")
         self.assertEqual(channels[0].limit, 5)
         self.assertEqual(len(channels[0].filters), 2)
-
-        os.unlink(path)
 
     def test_matches_filters_or_semantics(self):
         filters = [__import__("re").compile(r"(?i)\bpoland\b")]
@@ -93,6 +82,22 @@ class TestTelegramFilters(unittest.TestCase):
         )
 
     def test_project_yaml_matches_poland_krakow_jasionka(self):
+        config.apply({
+            "telegram": {
+                "channels": [
+                    {
+                        "username": "AMK_Mapping",
+                        "limit": 20,
+                        "filters": [
+                            r"(?i)\bpolands?\b",
+                            r"(?i)\bpolish\b",
+                            r"(?i)\bkrak[oó]w\b",
+                            r"(?i)\bjasionka\b",
+                        ],
+                    },
+                ],
+            },
+        })
         channels = load_channel_configs(self.logger)
         self.assertGreaterEqual(len(channels), 1)
         filters = channels[0].filters
@@ -114,26 +119,24 @@ class TestTelegramFilters(unittest.TestCase):
         )
 
     def test_invalid_regex_is_skipped(self):
-        with tempfile.NamedTemporaryFile(
-            "w", suffix=".yaml", delete=False,
-        ) as handle:
-            handle.write(textwrap.dedent("""
-                channels:
-                  - username: test_channel
-                    filters:
-                      - '(?i)[unclosed'
-                      - '(?i)\\bpoland\\b'
-            """))
-            path = handle.name
-
-        os.environ["TELEGRAM_CHANNELS_FILE"] = path
+        config.apply({
+            "telegram": {
+                "channels": [
+                    {
+                        "username": "test_channel",
+                        "filters": [
+                            r"(?i)[unclosed",
+                            r"(?i)\bpoland\b",
+                        ],
+                    },
+                ],
+            },
+        })
         channels = load_channel_configs(self.logger)
 
         self.assertEqual(len(channels), 1)
         self.assertEqual(len(channels[0].filters), 1)
         self.assertTrue(matches_filters("Poland alert", channels[0].filters))
-
-        os.unlink(path)
 
     def test_empty_filters_pass_everything(self):
         self.assertTrue(matches_filters("Any text", None))
@@ -148,37 +151,36 @@ class TestSourceTelegram(unittest.TestCase):
         self.env_keys = (
             "TELEGRAM_API_ID",
             "TELEGRAM_API_HASH",
-            "TELEGRAM_CHANNELS_FILE",
             "TELEGRAM_SESSION_STRING",
         )
         self.env_backup = {key: os.environ.get(key) for key in self.env_keys}
         os.environ["TELEGRAM_API_ID"] = "12345"
         os.environ["TELEGRAM_API_HASH"] = "hash"
         os.environ["TELEGRAM_SESSION_STRING"] = "1AgA"
-
-        with tempfile.NamedTemporaryFile(
-            "w", suffix=".yaml", delete=False,
-        ) as handle:
-            handle.write(textwrap.dedent("""
-                channels:
-                  - username: AMK_Mapping
-                    limit: 3
-                    filters:
-                      - '(?i)\\bpoland\\b'
-                      - '(?i)\\bjasionka\\b'
-            """))
-            self.channels_file = handle.name
-        os.environ["TELEGRAM_CHANNELS_FILE"] = self.channels_file
+        config.apply({
+            "telegram": {
+                "channels": [
+                    {
+                        "username": "AMK_Mapping",
+                        "limit": 3,
+                        "filters": [
+                            r"(?i)\bpoland\b",
+                            r"(?i)\bjasionka\b",
+                        ],
+                    },
+                ],
+            },
+        })
         reset_telegram_client()
 
     def tearDown(self):
         reset_telegram_client()
+        config.reset()
         for key, value in self.env_backup.items():
             if value is None:
                 os.environ.pop(key, None)
             else:
                 os.environ[key] = value
-        os.unlink(self.channels_file)
 
     def test_processors(self):
         source = SourceTelegram(self.logger)
@@ -242,7 +244,6 @@ class TestSourceTelegram(unittest.TestCase):
             items = source.fetch(self.logger)
 
         self.assertEqual(items, [])
-
 
     def test_fetch_disconnects_client_after_poll(self):
         source = SourceTelegram(self.logger)
@@ -347,15 +348,15 @@ class TestAllSourcesTelegram(unittest.TestCase):
         self.env_keys = (
             "TELEGRAM_API_ID",
             "TELEGRAM_API_HASH",
-            "TELEGRAM_CHANNELS_FILE",
             "TWITTERAPI_KEY",
-            "TWITTERAPI_USERNAMES",
         )
         self.env_backup = {key: os.environ.get(key) for key in self.env_keys}
         for key in self.env_keys:
             os.environ.pop(key, None)
+        config.reset()
 
     def tearDown(self):
+        config.reset()
         for key, value in self.env_backup.items():
             if value is None:
                 os.environ.pop(key, None)
@@ -365,6 +366,13 @@ class TestAllSourcesTelegram(unittest.TestCase):
     def test_all_sources_adds_telegram_when_configured(self):
         os.environ["TELEGRAM_API_ID"] = "12345"
         os.environ["TELEGRAM_API_HASH"] = "hash"
+        config.apply({
+            "telegram": {
+                "channels": [
+                    {"username": "AMK_Mapping", "limit": 5},
+                ],
+            },
+        })
 
         sources = self.war_alert.all_sources(self.logger)
 
@@ -375,10 +383,10 @@ class TestAllSourcesTelegram(unittest.TestCase):
         sources = self.war_alert.all_sources(self.logger)
         self.assertEqual(sources, [])
 
-    def test_all_sources_skips_telegram_without_channels_file(self):
+    def test_all_sources_skips_telegram_without_channels(self):
         os.environ["TELEGRAM_API_ID"] = "12345"
         os.environ["TELEGRAM_API_HASH"] = "hash"
-        os.environ["TELEGRAM_CHANNELS_FILE"] = "/does/not/exist.yaml"
+        config.apply({"telegram": {"channels": []}})
 
         sources = self.war_alert.all_sources(self.logger)
         self.assertEqual(sources, [])

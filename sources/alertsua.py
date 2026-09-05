@@ -3,9 +3,10 @@
 
     Environment variables:
         ALERTSUA_TOKEN — API token; enables this source.
-        ALERTSUA_FILTER_TYPES — comma-separated alert types (default
-            air_raid,chemical,nuclear).
-        ALERTSUA_FILTER_REGIONS — comma-separated region names to match.
+
+    Filter options in war-alert.yml under alertsua:
+        filter_types — alert types to include (default: all).
+        filter_regions — region names to include (default: all).
 
     Processors: [ProcessorUnique] only — no LLM classification.
 """
@@ -15,6 +16,8 @@ import os
 import time
 import requests
 import logging
+
+import config
 from sources.base import Source
 from processors.base import Content, Processor
 from processors.unique import ProcessorUnique
@@ -116,13 +119,13 @@ class SourceAlertsInUa(Source):
             return []
 
         # Filter alerts by alert type
-        alert_type_filter = os.environ.get("ALERTSUA_FILTER_TYPES")
+        alert_type_filter = config.alertsua_filter_types_raw()
         if alert_type_filter is not None:
             alerts = [alert for alert in alerts \
                 if alert["alert_type"] in alert_type_filter.split(",")]
 
         # Filter alerts by region
-        region_filter = os.environ.get("ALERTSUA_FILTER_REGIONS")
+        region_filter = config.alertsua_filter_regions_raw()
         if region_filter is not None:
             alerts = [alert for alert in alerts \
                 if alert["location_oblast"] in region_filter.split(",")]
