@@ -59,6 +59,16 @@ def calculate_md5_hash(text):
     """
     return hashlib.md5(text.encode('utf-8')).hexdigest()
 
+
+def content_is_seen(content: Content) -> bool:
+    """
+        Return True when the content hash is already in the dedup file.
+    """
+    content_hash = calculate_md5_hash(str(content))
+    with _hash_lock:
+        return search_hash_in_file(content_hash)
+
+
 class ProcessorUnique(Processor):
     """
         A class to represent a unique processor.

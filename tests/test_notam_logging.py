@@ -1,10 +1,12 @@
 import json
 import logging
 import os
+import tempfile
 import unittest
 from unittest.mock import Mock, patch
 
 import config
+from processors.unique import ProcessorUnique
 from sources import notam as notam_module
 from sources.notam import SourceNotam
 
@@ -123,6 +125,7 @@ class TestNotamFetchLogging(unittest.TestCase):
         self.assertEqual(complete["skipped_qcode"], 1)
         self.assertEqual(complete["filtered"], 1)
         self.assertEqual(complete["matched"], 1)
+        self.assertEqual(complete["already_seen"], 0)
         self.assertEqual(complete["duplicates"], 0)
         self.assertIn("duration_ms", complete)
         self.assertEqual(complete["locations"]["EPWW"]["count"], 3)
@@ -186,6 +189,47 @@ class TestNotamFetchLogging(unittest.TestCase):
             "WARSAW TMA CLOSED. AIRSPACE USE PLAN (AUP).",
         )
         self.assertEqual(self.handler.by_msg("NOTAM noise filtered"), [])
+
+    def test_already_seen_notam_not_logged_as_match(self):
+        fields = [
+            _fields(
+                "D6499/26",
+                "QRMXX",
+                "MILITARY OPERATIONS : NEW NOTAM TO FOLLOW",
+            ),
+        ]
+        self.tmpdir = tempfile.mkdtemp()
+        os.environ["TMPDIR"] = self.tmpdir
+        try:
+            with patch.object(
+                notam_module, "_get_access_token", return_value="token",
+            ), patch.object(
+                     SourceNotam,
+                     "_fetch_location_notams",
+                     return_value=(fields, 5),
+                 ):
+                source = SourceNotam(self.logger)
+                first = source.fetch(self.logger)
+                self.assertEqual(len(first), 1)
+                ProcessorUnique().process(first[0], self.logger)
+                ProcessorUnique().mark_seen(first[0])
+
+                self.handler.records.clear()
+                second = source.fetch(self.logger)
+
+            self.assertEqual(len(second), 1)
+            self.assertEqual(
+                self.handler.by_msg("NOTAM matched", logging.INFO),
+                [],
+            )
+            complete = self.handler.by_msg(
+                "NOTAM fetch complete",
+                logging.INFO,
+            )[0]
+            self.assertEqual(complete["matched"], 1)
+            self.assertEqual(complete["already_seen"], 1)
+        finally:
+            os.environ.pop("TMPDIR", None)
 
     def test_location_fetch_dump_is_debug(self):
         payload = {

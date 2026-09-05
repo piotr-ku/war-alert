@@ -27,9 +27,10 @@
 
     Structured logs (source NOTAM):
         info — NOTAM source configured (once), FAA NMS token acquired,
-            NOTAM matched, NOTAM noise filtered (reason histogram),
-            NOTAM fetch complete (fetched, skipped_qcode, filtered,
-            duplicates, matched, duration_ms, per-location counts).
+            NOTAM matched (new items only), NOTAM noise filtered
+            (reason histogram), NOTAM fetch complete (fetched,
+            skipped_qcode, filtered, duplicates, matched, already_seen,
+            duration_ms, per-location counts).
         debug — per-item NOTAM filtered as noise (full text), full
             per-location NOTAM list from FAA NMS.
 
@@ -56,7 +57,7 @@ import requests
 
 import config
 from processors.base import Content, Processor
-from processors.unique import ProcessorUnique
+from processors.unique import ProcessorUnique, content_is_seen
 from sources.base import Source
 
 DEFAULT_BASE_URL = "https://api-nms.aim.faa.gov/nmsapi"
@@ -512,6 +513,7 @@ class SourceNotam(Source):
         filtered_count = 0
         skipped_qcode = 0
         duplicate_count = 0
+        already_seen_count = 0
         location_stats: dict[str, dict[str, int]] = {}
         noise_reasons: dict[str, int] = {}
         passthrough_prefixes = _passthrough_qcodes()
@@ -564,7 +566,11 @@ class SourceNotam(Source):
                     duplicate_count += 1
                     continue
                 seen_keys.add(dedup_key)
-                notams.append(self._prepare_notam(fields, dedup_key))
+                notam = self._prepare_notam(fields, dedup_key)
+                notams.append(notam)
+                if content_is_seen(notam):
+                    already_seen_count += 1
+                    continue
                 _log_notam(self.logger, {
                     "msg": "NOTAM matched",
                     "number": fields["number"],
@@ -592,6 +598,7 @@ class SourceNotam(Source):
             "filtered": filtered_count,
             "duplicates": duplicate_count,
             "matched": len(notams),
+            "already_seen": already_seen_count,
             "duration_ms": int((time.monotonic() - started) * 1000),
             "locations": location_stats,
         })
