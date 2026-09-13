@@ -23,6 +23,7 @@ from processors.base import Content, Processor
 from processors.unique import ProcessorUnique
 
 url = "https://api.alerts.in.ua/v1/alerts/active.json"
+REQUEST_TIMEOUT = 30
 
 class Alert(Content):
     """
@@ -78,7 +79,11 @@ class SourceAlertsInUa(Source):
 
         # Get the alerts
         try:
-            response = requests.get(self.url, headers=headers)
+            response = requests.get(
+                self.url,
+                headers=headers,
+                timeout=REQUEST_TIMEOUT,
+            )
         except Exception as e:
             self.logger.error(json.dumps({
                 "time": time.strftime("%Y-%m-%dT%H:%M:%S", time.localtime()),

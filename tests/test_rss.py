@@ -4,7 +4,7 @@ import unittest
 import xml.etree.ElementTree as ET
 from unittest.mock import Mock, patch
 
-from sources.rss import News, SourceRSS
+from sources.rss import News, REQUEST_TIMEOUT, SourceRSS
 
 
 class RecordingHandler(logging.Handler):
@@ -216,6 +216,27 @@ class TestSourceRSSFetch(unittest.TestCase):
         self.assertEqual(
             errors[0]["reason"],
             "missing title and description",
+        )
+
+    def test_fetch_passes_request_timeout(self):
+        response = Mock()
+        response.text = _feed(
+            _item_xml(
+                title="Headline",
+                description="Body",
+                link="https://example.com/1",
+            ),
+        )
+
+        with patch(
+            "sources.rss.requests.get",
+            return_value=response,
+        ) as mock_get:
+            self.source.fetch(self.logger)
+
+        mock_get.assert_called_once_with(
+            "https://example.com/feed.rss",
+            timeout=REQUEST_TIMEOUT,
         )
 
     def test_fetch_request_error_returns_empty(self):

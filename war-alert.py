@@ -19,7 +19,8 @@
     verbosity; DEBUG adds NOTAM dumps and filter details.
 
     HTTP: HEALTH_PORT or WEBHOOK_PORT starts webhooks/server.py in a
-    background thread. SIGUSR1 sends a test notification.
+    background thread. SIGUSR1 queues a test notification for the poll
+    loop (never processed inside the signal handler).
 """
 
 import dotenv
@@ -28,6 +29,7 @@ import logging
 import os
 import signal
 import sys
+import threading
 import time
 
 import config
@@ -52,6 +54,8 @@ from processors.classify import news_processors, parse_processor_names
 from processors.unique import ProcessorUnique
 from processors.base import Content, Processor
 from webhooks.server import start_http_server
+
+_test_notification_event = threading.Event()
 
 def process_and_notify(
     item: Content,
@@ -96,19 +100,31 @@ def signal_handler(sig, frame):
 def usr1_handler(sig, frame):
     """
         Handle the SIGUSR1 signal.
+
+        Only log and queue work for the poll loop. Heavy work here would
+        interrupt RSS fetches and can deadlock locks on the main thread.
     """
     logger.warning(json.dumps({
         "time": time.strftime("%Y-%m-%dT%H:%M:%S", time.localtime()),
         "signal": signal.Signals(sig).name,
     }))
+    _test_notification_event.set()
 
-    # Process the news
+def run_pending_test_notification(logger: logging.Logger) -> None:
+    """
+        Send a deferred SIGUSR1 test notification from the poll loop.
+    """
+    if not _test_notification_event.is_set():
+        return
+    _test_notification_event.clear()
+
     content = News(
         "Everything is fine, it's just a test.",
         "We are testing the system. Please do not panic. Test time: " +
             time.strftime("%Y-%m-%dT%H:%M:%S", time.localtime()),
         time.strftime("%Y-%m-%dT%H:%M:%S", time.localtime()),
-        "https://github.com/piotr-ku/war-alert")
+        "https://github.com/piotr-ku/war-alert",
+    )
     process_and_notify(content, news_processors(), logger)
 
 # Handle the SIGTERM, SIGINT and SIGUSR1 signals
@@ -235,6 +251,7 @@ if __name__ == "__main__":
     # Infinite loop
     while True:
         try:
+            run_pending_test_notification(logger)
             config.reload(logger)
 
             # Get sources
@@ -254,5 +271,5 @@ if __name__ == "__main__":
             }, ensure_ascii=False))
             continue
 
-        # Sleep for the specified delay
-        time.sleep(config.sleep_delay())
+        # Sleep until the next poll or a queued SIGUSR1 test
+        _test_notification_event.wait(timeout=config.sleep_delay())

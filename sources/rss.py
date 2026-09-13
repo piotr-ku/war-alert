@@ -17,6 +17,8 @@ from sources.base import Source
 from processors.base import Content, Processor
 from processors.classify import news_processors
 
+REQUEST_TIMEOUT = 30
+
 class News(Content):
     """
         A class to represent a news.
@@ -110,7 +112,10 @@ class SourceRSS(Source):
 
         # Get the source of the RSS feed
         try:
-            source = requests.get(self.url).text
+            source = requests.get(
+                self.url,
+                timeout=REQUEST_TIMEOUT,
+            ).text
         except Exception as e:
             self.logger.error(json.dumps({
                 "time": time.strftime("%Y-%m-%dT%H:%M:%S", time.localtime()),
