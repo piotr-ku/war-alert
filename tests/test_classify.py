@@ -228,6 +228,55 @@ class TestProcessorClassification(unittest.TestCase):
         "processors.classify.get_system_prompt",
         return_value="system prompt",
     )
+    def test_accepts_json_with_prefix_and_suffix(
+        self,
+        _mock_system_prompt,
+    ):
+        mock_openai = Mock(
+            return_value=(
+                'Sure. {"result": "yes", "justification": "Relevant"} Done.',
+                {"model": "gpt-test"},
+            ),
+        )
+        with patch.dict(
+            "processors.classify.PROVIDERS",
+            {"openai": mock_openai},
+            clear=True,
+        ):
+            processor = ProcessorClassification(["openai"])
+            result = processor.process(self.content, self.logger)
+
+        self.assertIs(result, self.content)
+        self.assertEqual(result.description, "Relevant")
+
+    @patch(
+        "processors.classify.get_system_prompt",
+        return_value="system prompt",
+    )
+    def test_accepts_json_in_markdown_fence(self, _mock_system_prompt):
+        mock_openai = Mock(
+            return_value=(
+                '```json\n'
+                '{"result": "yes", "justification": "Relevant"}\n'
+                '```',
+                {"model": "gpt-test"},
+            ),
+        )
+        with patch.dict(
+            "processors.classify.PROVIDERS",
+            {"openai": mock_openai},
+            clear=True,
+        ):
+            processor = ProcessorClassification(["openai"])
+            result = processor.process(self.content, self.logger)
+
+        self.assertIs(result, self.content)
+        self.assertEqual(result.description, "Relevant")
+
+    @patch(
+        "processors.classify.get_system_prompt",
+        return_value="system prompt",
+    )
     def test_fallback_on_invalid_json(self, _mock_system_prompt):
         mock_openrouter = Mock(
             return_value=(

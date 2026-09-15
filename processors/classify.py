@@ -88,6 +88,41 @@ def _content_log_fields(content: Content) -> dict:
     }
 
 
+def extract_json_object(text: str) -> dict:
+    """
+        Return the first JSON object found in an LLM response.
+
+        Models sometimes prefix or suffix the JSON with extra text.
+    """
+    stripped = text.strip()
+    if stripped == "":
+        raise json.JSONDecodeError("empty input", text, 0)
+
+    try:
+        parsed = json.loads(text)
+        if isinstance(parsed, dict):
+            return parsed
+    except json.JSONDecodeError:
+        pass
+
+    decoder = json.JSONDecoder()
+    start = 0
+    while start < len(text):
+        brace = text.find("{", start)
+        if brace == -1:
+            break
+        try:
+            parsed, _end = decoder.raw_decode(text, brace)
+        except json.JSONDecodeError:
+            start = brace + 1
+            continue
+        if isinstance(parsed, dict):
+            return parsed
+        start = brace + 1
+
+    raise json.JSONDecodeError("no json object found", text, 0)
+
+
 def _parse_classification(
     answer: str,
     content: Content,
@@ -102,7 +137,7 @@ def _parse_classification(
         or "invalid" when the response should trigger the next provider.
     """
     try:
-        parsed = json.loads(answer)
+        parsed = extract_json_object(answer)
     except Exception as e:
         logger.error(json.dumps({
             "time": time.strftime(
