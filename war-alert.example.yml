@@ -178,6 +178,18 @@ alertsua:
   #   - Львівська область
   #   - Волинська область
 
+neptun:
+  # NEPTUN moving threats (https://neptun.in.ua/developers). No API key.
+  enabled: false
+  alert_km: 50
+  lookahead_minutes: 15
+  skip_advisory: true
+  types:
+    - uav
+    - missile
+    - ballistic
+    - kab
+
 ntfy:
   priority: high
   # tags:

@@ -42,6 +42,7 @@ from notifiers.telegram import NotifierTelegram
 from sources.alertsua import SourceAlertsInUa
 from sources.alertsua import url as alertsua_url
 from sources.base import Source
+from sources.neptun import SourceNeptun
 from sources.notam import SourceNotam
 from sources.rss import News, SourceRSS
 from sources.twitterapi import SourceTwitterAPI
@@ -163,6 +164,10 @@ def all_sources(logger: logging.Logger) -> list[Source]:
     # Add the Telegram channel source if API credentials and channels are set
     if telegram_credentials_configured() and load_channel_configs(logger):
         all_sources.append(SourceTelegram(logger))
+
+    # Add the NEPTUN source when enabled in war-alert.yml
+    if config.neptun_enabled():
+        all_sources.append(SourceNeptun(logger))
 
     return all_sources
 

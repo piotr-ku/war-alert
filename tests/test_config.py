@@ -40,6 +40,26 @@ class TestConfigApply(unittest.TestCase):
         self.assertEqual(config.notam_passthrough_qcodes_raw(), "")
         self.assertEqual(config.notam_text_exclude_raw(), "")
 
+    def test_neptun_defaults_and_types(self):
+        config.apply({
+            "classification": {
+                "processor": "openai",
+                "prompt": "test",
+            },
+            "neptun": {
+                "enabled": True,
+                "alert_km": 40,
+                "lookahead_minutes": 10,
+                "skip_advisory": False,
+                "types": ["uav", "missile"],
+            },
+        })
+        self.assertTrue(config.neptun_enabled())
+        self.assertEqual(config.neptun_alert_km(), 40.0)
+        self.assertEqual(config.neptun_lookahead_minutes(), 10.0)
+        self.assertFalse(config.neptun_skip_advisory())
+        self.assertEqual(config.neptun_types(), ["uav", "missile"])
+
 
 class TestConfigReload(unittest.TestCase):
     def setUp(self):

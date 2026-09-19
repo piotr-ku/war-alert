@@ -47,10 +47,12 @@ defaults and comments.
 | Telegram channels | `TELEGRAM_API_ID`, `TELEGRAM_API_HASH` in `.env` and `telegram.channels` in `war-alert.yml` |
 | FAA NOTAMs (Polish airspace) | `FAA_NMS_CLIENT_ID`, `FAA_NMS_CLIENT_SECRET` in `.env` |
 | Alerts.in.ua | `ALERTSUA_TOKEN` in `.env` |
+| NEPTUN (Ukraine air threats) | `neptun.enabled: true` in `war-alert.yml` |
 
 RSS, Twitter, and Telegram posts go through LLM classification
 (`classification.processor` and `classification.prompt` in `war-alert.yml`).
-NOTAMs and webhook alerts skip the classifier.
+NOTAMs, NEPTUN threats, Alerts.in.ua alerts, and webhook alerts skip
+the classifier.
 
 ## Notifications
 

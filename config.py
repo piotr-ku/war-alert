@@ -37,6 +37,9 @@ DEFAULT_NOTAM_TEXT_EXCLUDE = (
     "AVBL FOR REQUEST,TEMPORARY AVBL"
 )
 DEFAULT_NTFY_PRIORITY = "high"
+DEFAULT_NEPTUN_ALERT_KM = 50
+DEFAULT_NEPTUN_LOOKAHEAD_MINUTES = 15
+DEFAULT_NEPTUN_TYPES = "uav,missile,ballistic,kab"
 
 _config: dict[str, Any] = {}
 _loaded = False
@@ -409,6 +412,68 @@ def alertsua_filter_regions_raw() -> str | None:
     if isinstance(value, str):
         return value.strip()
     return None
+
+
+def neptun_enabled() -> bool:
+    """
+        Return True when the NEPTUN source is enabled in config.
+    """
+    section = _section("neptun")
+    raw = section.get("enabled")
+    if raw is None:
+        return False
+    if isinstance(raw, bool):
+        return raw
+    if isinstance(raw, str):
+        return raw.strip().lower() in ("1", "true", "yes", "on")
+    return bool(raw)
+
+
+def neptun_alert_km() -> float:
+    """
+        Return the alert distance from Poland in kilometres.
+    """
+    section = _section("neptun")
+    raw = section.get("alert_km", DEFAULT_NEPTUN_ALERT_KM)
+    try:
+        return float(raw)
+    except (TypeError, ValueError):
+        return float(DEFAULT_NEPTUN_ALERT_KM)
+
+
+def neptun_lookahead_minutes() -> float:
+    """
+        Return dead-reckon lookahead minutes for approach checks.
+    """
+    section = _section("neptun")
+    raw = section.get("lookahead_minutes", DEFAULT_NEPTUN_LOOKAHEAD_MINUTES)
+    try:
+        return float(raw)
+    except (TypeError, ValueError):
+        return float(DEFAULT_NEPTUN_LOOKAHEAD_MINUTES)
+
+
+def neptun_skip_advisory() -> bool:
+    """
+        Return True when advisory NEPTUN threats should be skipped.
+    """
+    section = _section("neptun")
+    raw = section.get("skip_advisory", True)
+    if isinstance(raw, bool):
+        return raw
+    if isinstance(raw, str):
+        return raw.strip().lower() in ("1", "true", "yes", "on")
+    return bool(raw)
+
+
+def neptun_types() -> list[str]:
+    """
+        Return allowed NEPTUN threat types from config.
+    """
+    section = _section("neptun")
+    if "types" not in section:
+        return _comma_list(DEFAULT_NEPTUN_TYPES)
+    return _comma_list(section.get("types"))
 
 
 def ntfy_priority() -> str:
